@@ -3,7 +3,7 @@ import { MangaEntryActionBar } from "@/components/features/manga/manga-entry-act
 import { MangaEntryChaptersView } from "@/components/features/manga/manga-entry-chapters-view"
 import { MangaEntryDownloadedView } from "@/components/features/manga/manga-entry-downloaded-view"
 import { MangaEntryInfoView } from "@/components/features/manga/manga-entry-info-view"
-import { MangaEntryView, MangaEntryViewSwitcher } from "@/components/features/manga/manga-entry-view-switcher"
+import { MangaEntryView, MangaEntryViewSwitcher, tvMangaEntryView } from "@/components/features/manga/manga-entry-view-switcher"
 import { MediaEntryHeaderBackground, MediaEntryHeaderContent } from "@/components/features/media/media-entry-header"
 import { MediaEntryScrollShell } from "@/components/features/media/media-entry-scroll-shell"
 import { SafeView } from "@/components/layout/layout-view"
@@ -18,11 +18,11 @@ import { getAllDownloadedChaptersForMediaAllProviders } from "@/lib/downloads/ma
 import { useIsServerConnected, useServerConnectionState } from "@/lib/offline"
 import { saveMangaDownloadEntrySnapshot } from "@/lib/offline/download-entry-snapshot-store"
 import { resolveOfflineMangaEntry } from "@/lib/offline/offline-entry-resolver"
-import { useIsFocused } from "@react-navigation/native"
+import { useIsFocused } from "expo-router"
 import { router, useLocalSearchParams } from "expo-router"
 import * as React from "react"
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { InteractionManager, RefreshControl, Text, TouchableOpacity, View } from "react-native"
+import { InteractionManager, Platform, RefreshControl, Text, TouchableOpacity, View } from "react-native"
 import Animated, { FadeIn, useSharedValue } from "react-native-reanimated"
 import Reanimated, { useAnimatedScrollHandler } from "react-native-reanimated"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
@@ -33,6 +33,7 @@ type MangaEntryScreenProps = {
 }
 
 export function MangaEntryScreen({ initialView = "chapters" }: MangaEntryScreenProps) {
+    const startView = Platform.isTV ? tvMangaEntryView(initialView) : initialView
     const { id } = useLocalSearchParams<{ id: string }>()
     const mediaId = Number(id)
     const { data: remoteEntry, isFetching, isLoading, refetch } = useGetMangaEntry(id)
@@ -40,6 +41,7 @@ export function MangaEntryScreen({ initialView = "chapters" }: MangaEntryScreenP
     const entry = remoteEntry?.media ? remoteEntry : offlineEntry
 
     React.useEffect(() => {
+        if (Platform.isTV) return
         if (!remoteEntry?.media) return
         if (getAllDownloadedChaptersForMediaAllProviders(remoteEntry.mediaId).length === 0) return
 
@@ -50,15 +52,15 @@ export function MangaEntryScreen({ initialView = "chapters" }: MangaEntryScreenP
     const connectionState = useServerConnectionState()
     const isConnected = useIsServerConnected()
     const isOffline = connectionState === "disconnected"
-    const [currentView, setCurrentView] = useState<MangaEntryView>(initialView)
+    const [currentView, setCurrentView] = useState<MangaEntryView>(startView)
     const [isPrimaryBodyReady, setIsPrimaryBodyReady] = useState(false)
     const chaptersScrollY = useSharedValue(0)
     const infoScrollY = useSharedValue(0)
     const downloadedScrollY = useSharedValue(0)
     const [mountedViews, setMountedViews] = React.useState<Record<MangaEntryView, boolean>>({
-        chapters: initialView === "chapters",
-        info: initialView === "info",
-        downloaded: initialView === "downloaded",
+        chapters: startView === "chapters",
+        info: startView === "info",
+        downloaded: startView === "downloaded",
     })
     const activeScrollY = useMemo(() => {
         switch (currentView) {
@@ -126,7 +128,7 @@ export function MangaEntryScreen({ initialView = "chapters" }: MangaEntryScreenP
     // when offline, force to downloads view
     useEffect(() => {
         if (isOffline && currentView === "chapters") {
-            setCurrentView("downloaded")
+            setCurrentView(Platform.isTV ? "info" : "downloaded")
         }
     }, [isOffline, currentView])
 
@@ -213,7 +215,7 @@ export function MangaEntryScreen({ initialView = "chapters" }: MangaEntryScreenP
                     </View>
                 )}
 
-                {mountedViews.downloaded && (
+                {!Platform.isTV && mountedViews.downloaded && (
                     <View style={{ flex: currentView === "downloaded" ? 1 : 0, display: currentView === "downloaded" ? "flex" : "none" }}>
                         <MediaEntryScrollShell
                             entry={entry}

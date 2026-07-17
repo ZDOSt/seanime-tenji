@@ -6,6 +6,10 @@ const POD_LINE = "  pod 'ExpoDownloadManager', :path => '../modules/expo-downloa
 const POD_REGEX = /^\s*pod 'ExpoDownloadManager'.*$/m
 
 function withExpoDownloadManageriOS(config) {
+    if (process.env.EXPO_TV === "1" || process.env.EXPO_TV === "true") {
+        return config
+    }
+
     config = withInfoPlist(config, (config) => {
         const modes = Array.isArray(config.modResults.UIBackgroundModes)
             ? config.modResults.UIBackgroundModes

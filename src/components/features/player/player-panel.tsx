@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/utils"
 import type { MpvVideoOutput } from "expo-mpv-player"
 import {
+    Activity,
     Captions,
     Check,
     ChevronLeft,
@@ -126,6 +127,7 @@ export interface PlayerPanelOverlayProps {
     onToggleCenterTapPlayPause?: () => void
     onToggleSideSwipeControls?: () => void
     onToggleAutoSkipOpEd?: () => void
+    onToggleStats?: () => void
     onLockScreen?: () => void
 }
 
@@ -149,7 +151,6 @@ export function PlayerPanelOverlay(props: PlayerPanelOverlayProps) {
                     zIndex: 100,
                 }}
             >
-
                 <View className="flex-row items-center border-b border-white/5 px-4 pb-3">
                     {backPanel !== null && (
                         <Pressable
@@ -190,6 +191,7 @@ export function PlayerPanelOverlay(props: PlayerPanelOverlayProps) {
                             onToggleCenterTapPlayPause={props.onToggleCenterTapPlayPause}
                             onToggleSideSwipeControls={props.onToggleSideSwipeControls}
                             onToggleAutoSkipOpEd={props.onToggleAutoSkipOpEd}
+                            onToggleStats={props.onToggleStats}
                             onLockScreen={props.onLockScreen}
                             videoSources={props.videoSources}
                             videoSource={props.videoSource}
@@ -344,14 +346,21 @@ function PanelSelectableRow({
     children: React.ReactNode
     className?: string
 }) {
+    const [focused, setFocused] = React.useState(false)
+
     return (
-        <Pressable onPress={onPress} disabled={disabled ?? !onPress}>
+        <Pressable
+            onPress={onPress}
+            disabled={disabled ?? !onPress}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+        >
             {({ pressed }) => (
                 <View
                     className={cn(
                         PANEL_ROW_CLASS,
                         borderTop && PANEL_DIVIDER_CLASS,
-                        active ? "bg-player-tint/15" : pressed && onPress ? "bg-white/7" : "bg-transparent",
+                        active ? "bg-player-tint/15" : (pressed || focused) && onPress ? "bg-white/10" : "bg-transparent",
                         className,
                     )}
                 >
@@ -368,20 +377,21 @@ function PanelSelectableRow({
 
 function MainSettingsContent({
     state, prefs, onNavigate, onStartPiP, onToggleAutoNext,
-    onToggleCenterTapPlayPause, onToggleSideSwipeControls, onToggleAutoSkipOpEd, onLockScreen,
+    onToggleCenterTapPlayPause, onToggleSideSwipeControls, onToggleAutoSkipOpEd, onToggleStats, onLockScreen,
     videoSources = [], videoSource,
 }: {
     state: PlayerStateType; prefs: PlayerPreferences; onNavigate: (p: PlayerPanel) => void
     onStartPiP?: () => void; onToggleAutoNext?: () => void
     onToggleCenterTapPlayPause?: () => void; onToggleSideSwipeControls?: () => void
     onToggleAutoSkipOpEd?: () => void
+    onToggleStats?: () => void
     onLockScreen?: () => void
     videoSources?: Onlinestream_VideoSource[]
     videoSource?: Onlinestream_VideoSource
 }) {
     const rows: Array<{
         label: string; value: string; panel: PlayerPanel; icon: React.ReactNode
-        accent?: string; action?: "pip" | "lock" | "toggle-auto-next" | "toggle-center-tap" | "toggle-side-swipe" | "toggle-auto-skip-op-ed"
+        accent?: string; action?: "pip" | "lock" | "toggle-auto-next" | "toggle-center-tap" | "toggle-side-swipe" | "toggle-auto-skip-op-ed" | "toggle-stats"
     }> = [
         {
             label: "Playback Speed",
@@ -449,6 +459,14 @@ function MainSettingsContent({
             icon: <Lock size={15} color="rgba(255,255,255,0.6)" />,
             action: "lock",
         },
+        {
+            label: "Playback Stats",
+            value: prefs.showStats ? "On" : "Off",
+            panel: "main",
+            icon: <Activity size={15} color="rgba(255,255,255,0.6)" />,
+            accent: prefs.showStats ? BRAND_ACCENT : undefined,
+            action: "toggle-stats",
+        },
     ]
 
     if (videoSources.length > 1 && videoSource) {
@@ -478,6 +496,7 @@ function MainSettingsContent({
                 onToggleCenterTapPlayPause={onToggleCenterTapPlayPause}
                 onToggleSideSwipeControls={onToggleSideSwipeControls}
                 onToggleAutoSkipOpEd={onToggleAutoSkipOpEd}
+                onToggleStats={onToggleStats}
                 onLockScreen={onLockScreen}
             />
         </View>
@@ -1175,15 +1194,21 @@ function FilterRow({ label, children }: { label: string; children: React.ReactNo
 }
 
 function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+    const [focused, setFocused] = React.useState(false)
+
     return (
-        <Pressable onPress={onPress}>
+        <Pressable
+            onPress={onPress}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+        >
             {({ pressed }) => (
                 <View
                     className={cn(
                         "rounded-lg border px-2.5 py-1.5",
                         active
                             ? "border-player-tint/25 bg-player-tint/15"
-                            : pressed ? "border-white/10 bg-white/7" : "border-white/5 bg-white/5",
+                            : pressed || focused ? "border-white/30 bg-white/10" : "border-white/5 bg-white/5",
                     )}
                 >
                     <Text className={cn("text-xs text-white/50", active && "font-semibold text-player-text")}>
@@ -1322,14 +1347,13 @@ function EpisodesListContent({
             {episodes.map((ep) => {
                 const isCurrent = ep.episodeNumber === currentEpisodeNumber
                 return (
-                    <Pressable key={ep.episodeNumber} onPress={() => { if (!isCurrent) onSelect(ep) }} disabled={isCurrent}>
-                        {({ pressed }) => (
-                            <View
-                                className={cn(
-                                    "flex-row items-center gap-2.5 rounded-lg px-2 py-2.5",
-                                    isCurrent ? "border border-player-tint/25 bg-player-tint/15" : pressed ? "bg-white/5" : "bg-transparent",
-                                )}
-                            >
+                    <PanelSelectableRow
+                        key={ep.episodeNumber}
+                        onPress={() => onSelect(ep)}
+                        disabled={isCurrent}
+                        active={isCurrent}
+                        className="rounded-lg px-2 py-2.5"
+                    >
                                 <Text className={cn("w-8 text-center text-sm font-bold", isCurrent ? "text-player-text" : "text-white/35")}>
                                     {ep.episodeNumber}
                                 </Text>
@@ -1347,9 +1371,7 @@ function EpisodesListContent({
                                 <View className="flex-row items-center gap-1">
                                     {isCurrent && <Play size={11} color={BRAND_ACCENT} fill={BRAND_ACCENT} />}
                                 </View>
-                            </View>
-                        )}
-                    </Pressable>
+                    </PanelSelectableRow>
                 )
             })}
         </View>
@@ -1366,16 +1388,17 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function SettingsCard({
     rows, onNavigate, onStartPiP, onToggleAutoNext,
-    onToggleCenterTapPlayPause, onToggleSideSwipeControls, onToggleAutoSkipOpEd, onLockScreen,
+    onToggleCenterTapPlayPause, onToggleSideSwipeControls, onToggleAutoSkipOpEd, onToggleStats, onLockScreen,
 }: {
     rows: Array<{
         label: string; value: string; panel: PlayerPanel; icon: React.ReactNode
-        accent?: string; action?: "pip" | "lock" | "toggle-auto-next" | "toggle-center-tap" | "toggle-side-swipe" | "toggle-auto-skip-op-ed"
+        accent?: string; action?: "pip" | "lock" | "toggle-auto-next" | "toggle-center-tap" | "toggle-side-swipe" | "toggle-auto-skip-op-ed" | "toggle-stats"
     }>
     onNavigate: (p: PlayerPanel) => void
     onStartPiP?: () => void; onToggleAutoNext?: () => void
     onToggleCenterTapPlayPause?: () => void; onToggleSideSwipeControls?: () => void
     onToggleAutoSkipOpEd?: () => void
+    onToggleStats?: () => void
     onLockScreen?: () => void
 }) {
     return (
@@ -1390,6 +1413,7 @@ function SettingsCard({
                         else if (row.action === "toggle-center-tap" && onToggleCenterTapPlayPause) onToggleCenterTapPlayPause()
                         else if (row.action === "toggle-side-swipe" && onToggleSideSwipeControls) onToggleSideSwipeControls()
                         else if (row.action === "toggle-auto-skip-op-ed" && onToggleAutoSkipOpEd) onToggleAutoSkipOpEd()
+                        else if (row.action === "toggle-stats" && onToggleStats) onToggleStats()
                         else if (row.action === "lock" && onLockScreen) onLockScreen()
                         else onNavigate(row.panel)
                     }}

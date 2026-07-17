@@ -1,7 +1,9 @@
+import { SeaBottomSheet } from "@/components/ui/bottom-sheet"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { Ionicons } from "@expo/vector-icons"
 import * as React from "react"
-import { Pressable, Text } from "react-native"
+import { Platform, Pressable, Text, View } from "react-native"
 import * as DropdownMenu from "zeego/dropdown-menu"
 
 export type NativeSelectOption = {
@@ -24,6 +26,7 @@ export function NativeSelect({
     options,
     selectedId,
     onSelect,
+    title = "Select an option",
     placeholder = "Select...",
     className,
     disabled,
@@ -32,6 +35,53 @@ export function NativeSelect({
         () => options.find(o => o.id === selectedId)?.label ?? null,
         [options, selectedId],
     )
+    const [tvOpen, setTVOpen] = React.useState(false)
+
+    if (Platform.isTV) {
+        return (
+            <>
+                <Button
+                    variant="secondary"
+                    disabled={disabled}
+                    className={cn("h-14 flex-row justify-between rounded-xl px-4", className)}
+                    onPress={() => setTVOpen(true)}
+                >
+                    <Text className={cn("flex-1 text-base font-medium", selectedLabel ? "text-white" : "text-white/40")}>
+                        {selectedLabel ?? placeholder}
+                    </Text>
+                    <Ionicons name="chevron-down" size={18} color="rgba(255,255,255,0.55)" />
+                </Button>
+                <SeaBottomSheet
+                    open={tvOpen}
+                    onOpenChange={setTVOpen}
+                    title={title}
+                    snapPoints={["70%"]}
+                >
+                    <View className="gap-2">
+                        {options.map((option, index) => (
+                            <Button
+                                key={option.id}
+                                variant={option.id === selectedId ? "default" : "secondary"}
+                                className="min-h-14 items-start rounded-xl px-5"
+                                hasTVPreferredFocus={index === 0}
+                                onPress={() => {
+                                    onSelect(option.id)
+                                    setTVOpen(false)
+                                }}
+                            >
+                                <View className="flex-1">
+                                    <Text className="text-base font-semibold text-white">{option.label}</Text>
+                                    {option.sublabel ? (
+                                        <Text className="mt-0.5 text-sm text-white/45">{option.sublabel}</Text>
+                                    ) : null}
+                                </View>
+                            </Button>
+                        ))}
+                    </View>
+                </SeaBottomSheet>
+            </>
+        )
+    }
 
     return (
         <DropdownMenu.Root>

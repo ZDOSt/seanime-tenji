@@ -2,6 +2,7 @@ import { useGetAnimeEntry } from "@/api/hooks/anime_entries.hooks"
 import { AnimeEntryScreen } from "@/components/features/media/anime-entry-screen"
 import { AnimeEntryScreenProvider } from "@/components/features/media/anime-entry-screen-context"
 import { type AnimeEntryView } from "@/components/features/media/anime-entry-view-switcher"
+import { tvEntryView } from "@/components/features/media/anime-entry-view-utils"
 import { SafeView } from "@/components/layout/layout-view"
 import { CenteredSpinner } from "@/components/shared/centered-spinner"
 import { LuffyError } from "@/components/shared/luffy-error"
@@ -11,23 +12,30 @@ import { saveAnimeDownloadEntrySnapshot } from "@/lib/offline/download-entry-sna
 import { resolveOfflineAnimeEntry } from "@/lib/offline/offline-entry-resolver"
 import { router, useLocalSearchParams } from "expo-router"
 import * as React from "react"
-import { Text, TouchableOpacity, View } from "react-native"
+import { Platform, Text, TouchableOpacity, View } from "react-native"
 
 const VALID_VIEWS = new Set<AnimeEntryView>(["library", "torrentstream", "onlinestream", "info", "downloaded", "server-local"])
 
 export default function Screen() {
     const { id, initialView } = useLocalSearchParams<{ id: string, initialView?: string }>()
-    const view: AnimeEntryView =
+    const requestedView: AnimeEntryView | undefined =
         initialView && VALID_VIEWS.has(initialView as AnimeEntryView)
             ? (initialView as AnimeEntryView)
-            : "library"
+            : undefined
+    const view = requestedView
+        ? (Platform.isTV ? tvEntryView(requestedView) : requestedView)
+        : undefined
 
     const { data: entry, isLoading, isFetching, refetch } = useGetAnimeEntry(id)
     const serverLocalEntry = useServerLocalAnimeEntry(Number(id))
-    const offlineEntry = React.useMemo(() => resolveOfflineAnimeEntry(Number(id), serverLocalEntry), [id, serverLocalEntry])
+    const offlineEntry = React.useMemo(
+        () => Platform.isTV ? serverLocalEntry : resolveOfflineAnimeEntry(Number(id), serverLocalEntry),
+        [id, serverLocalEntry],
+    )
     const resolvedEntry = entry?.media ? entry : offlineEntry
 
     React.useEffect(() => {
+        if (Platform.isTV) return
         if (!entry?.media) return
         if (getDownloadedEpisodesForMedia(entry.mediaId).length === 0) return
 

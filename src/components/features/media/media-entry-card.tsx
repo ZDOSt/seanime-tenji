@@ -13,27 +13,12 @@ import { MediaEntryQuickInfoSheet } from "@/components/features/media/media-entr
 import { SeaImage } from "@/components/shared/sea-image"
 import { getMangaEntryLatestChapterNumber, useStoredMangaSelectionState } from "@/hooks/use-manga-chapters"
 import { Ionicons } from "@/lib/icons/Ionicons"
+import { animeCardStats, scoreColor } from "@/lib/media-metadata"
 import { cn } from "@/lib/utils"
 import React from "react"
-import { Pressable, Text, View } from "react-native"
+import { Platform, Pressable, Text, View } from "react-native"
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated"
 import { MediaEntryScore } from "./media-entry-score"
-
-function audienceScoreColor(score: number): string {
-    if (score < 60) return "#fca5a5"  // red-300
-    if (score < 70) return "#fde68a"  // amber-200
-    if (score < 82) return "#86efac"  // green-300
-    return "#a5b4fc"                  // indigo-300
-}
-
-function getCurrentAnimeEpisodeCount(media: AL_BaseAnime) {
-    const nextAiringEpisode = media.nextAiringEpisode?.episode
-    if (nextAiringEpisode) {
-        return Math.max(0, nextAiringEpisode - 1)
-    }
-
-    return media.episodes ?? 0
-}
 
 function CardProgressBadgeContainer({
     topContent,
@@ -96,19 +81,13 @@ function AnimeEntryCardProgressBadge({
     cardWidth: number
     showUnwatched: boolean
 }) {
-    const progress = listData?.progress ?? 0
-    const isInLibrary = !!nakamaLibraryData?.mainFileCount || !!libraryData?.mainFileCount
-    const unwatchedFromLibrary = nakamaLibraryData?.unwatchedCount ?? libraryData?.unwatchedCount ?? 0
-    const unwatchedFromStreaming = Math.max(0, getCurrentAnimeEpisodeCount(media) - progress)
-    const unwatchedCount = isInLibrary ? unwatchedFromLibrary : unwatchedFromStreaming
-    const shouldShowUnwatchedCount = showUnwatched
-        && (listData?.status === "CURRENT" || listData?.status === "REPEATING")
-        && unwatchedCount > 0
+    const stats = animeCardStats(media, listData, libraryData, nakamaLibraryData, showUnwatched)
+    const shouldShowUnwatchedCount = stats.unwatched > 0
 
     const topContent = shouldShowUnwatchedCount ? (
         <>
             <Ionicons name="play-circle-outline" size={11} color="rgba(255,255,255,0.85)" />
-            <Text className="text-xs font-semibold text-white/85">{unwatchedCount}</Text>
+            <Text className="text-xs font-semibold text-white/85">{stats.unwatched}</Text>
         </>
     ) : undefined
 
@@ -220,6 +199,7 @@ export function MediaEntryCard<T extends "anime" | "manga">(props: MediaEntryCar
     const blurAdult = !!serverStatus?.settings?.anilist?.blurAdultContent
     const showUnwatched = serverStatus?.themeSettings?.showAnimeUnwatchedCount ?? true
     const [sheetOpen, setSheetOpen] = React.useState(false)
+    const [focused, setFocused] = React.useState(false)
     const syncedListData = useMediaEntryListDataValue(type, media.id)
     const syncedLibraryEntryData = useAnimeLibraryEntryDataValue(media.id)
     const listData = (syncedListData ?? _listData) as Anime_EntryListData | Manga_EntryListData | undefined
@@ -236,7 +216,17 @@ export function MediaEntryCard<T extends "anime" | "manga">(props: MediaEntryCar
     }
 
     function onPressOut() {
-        scale.set(withSpring(1, { damping: 50, stiffness: 400 }))
+        scale.set(withSpring(focused && Platform.isTV ? 1.055 : 1, { damping: 50, stiffness: 400 }))
+    }
+
+    function onFocus() {
+        setFocused(true)
+        scale.set(withSpring(1.055, { damping: 30, stiffness: 320 }))
+    }
+
+    function onBlur() {
+        setFocused(false)
+        scale.set(withSpring(1, { damping: 30, stiffness: 320 }))
     }
 
     function onPress() {
@@ -256,7 +246,15 @@ export function MediaEntryCard<T extends "anime" | "manga">(props: MediaEntryCar
 
     return (
         <>
-            <Pressable onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} onLongPress={onLongPress} delayLongPress={350}>
+            <Pressable
+                onPress={onPress}
+                onPressIn={onPressIn}
+                onPressOut={onPressOut}
+                onLongPress={onLongPress}
+                onFocus={onFocus}
+                onBlur={onBlur}
+                delayLongPress={350}
+            >
                 <Animated.View
                     className="flex flex-col relative mb-2"
                     style={[
@@ -270,7 +268,9 @@ export function MediaEntryCard<T extends "anime" | "manga">(props: MediaEntryCar
                     {overlay}
                     <View
                         className="relative mb-2 w-full overflow-hidden rounded-xl"
-                        style={{ height: posterHeight }}
+                        style={{
+                            height: posterHeight,
+                        }}
                     >
                         <SeaImage
                             source={{ uri: media.coverImage?.large || media.coverImage?.extraLarge || "" }}
@@ -306,8 +306,8 @@ export function MediaEntryCard<T extends "anime" | "manga">(props: MediaEntryCar
 
                         {!!media.meanScore && showAudienceScore && (
                             <View className="absolute bottom-0 left-0 flex-row items-center gap-1 rounded-tr-lg bg-black/70 px-1.5 py-1">
-                                <Ionicons name="heart" size={9} color={audienceScoreColor(media.meanScore)} />
-                                <Text className="text-xs font-bold" style={{ color: audienceScoreColor(media.meanScore) }}>
+                                <Ionicons name="heart" size={9} color={scoreColor(media.meanScore)} />
+                                <Text className="text-xs font-bold" style={{ color: scoreColor(media.meanScore) }}>
                                     {(media.meanScore / 10).toFixed(1)}
                                 </Text>
                             </View>

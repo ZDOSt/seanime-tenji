@@ -7,7 +7,7 @@ import BottomSheet, {
 } from "@gorhom/bottom-sheet"
 import { Portal } from "@rn-primitives/portal"
 import React, { useCallback, useId, useMemo, useRef } from "react"
-import { Text, View } from "react-native"
+import { BackHandler, Platform, ScrollView, Text, TVFocusGuideView, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 type BottomSheetProps = {
@@ -30,7 +30,24 @@ type BottomSheetProps = {
     scrollRef?: React.Ref<BottomSheetScrollViewMethods>
 }
 
-export function SeaBottomSheet({
+export function SeaBottomSheet(props: BottomSheetProps) {
+    if (Platform.isTV) {
+        return (
+            <TVSheet
+                title={props.title}
+                footer={props.footer}
+                open={props.open}
+                onOpenChange={props.onOpenChange}
+            >
+                {props.children}
+            </TVSheet>
+        )
+    }
+
+    return <PhoneSheet {...props} />
+}
+
+function PhoneSheet({
     className,
     title,
     children,
@@ -134,5 +151,61 @@ export function SeaBottomSheet({
                 </Portal>
             )}
         </>
+    )
+}
+
+function TVSheet({
+    title,
+    children,
+    footer,
+    open,
+    onOpenChange,
+}: Pick<BottomSheetProps, "title" | "children" | "footer" | "open" | "onOpenChange">) {
+    const id = useId()
+
+    React.useEffect(() => {
+        if (!open) return
+
+        const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+            onOpenChange(false)
+            return true
+        })
+
+        return () => sub.remove()
+    }, [onOpenChange, open])
+
+    if (!open) return null
+
+    return (
+        <Portal name={`tv-sheet-${id}`}>
+            <View className="absolute inset-0 z-50 items-center justify-center bg-black/80 px-16 py-10">
+                <TVFocusGuideView
+                    autoFocus
+                    trapFocusDown
+                    trapFocusLeft
+                    trapFocusRight
+                    trapFocusUp
+                    className="max-h-[88%] w-[78%] max-w-5xl overflow-hidden rounded-2xl border border-white/15 bg-card"
+                >
+                    {title ? (
+                        <View className="border-b border-white/10 px-7 py-5">
+                            <Text className="text-2xl font-bold text-white">{title}</Text>
+                        </View>
+                    ) : null}
+                    <ScrollView
+                        className="flex-shrink"
+                        contentContainerStyle={{ paddingHorizontal: 28, paddingVertical: 24 }}
+                        showsVerticalScrollIndicator={false}
+                    >
+                        {children}
+                    </ScrollView>
+                    {footer ? (
+                        <View className="border-t border-white/10 px-7 py-5">
+                            {footer}
+                        </View>
+                    ) : null}
+                </TVFocusGuideView>
+            </View>
+        </Portal>
     )
 }

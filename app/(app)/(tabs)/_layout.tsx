@@ -1,7 +1,9 @@
 import { useCurrentUser } from "@/atoms/server.atoms"
 import { AppTabConfig, TabBar } from "@/components/layout/tabs"
+import { TVNavBar } from "@/components/tv/tv-nav-bar"
 import { Tabs } from "expo-router"
 import * as React from "react"
+import { Platform, View } from "react-native"
 
 export default function TabLayout() {
 
@@ -38,7 +40,44 @@ export default function TabLayout() {
             displayName: "Profile",
             icon: "cog-outline",
         },
+        {
+            show: false,
+            name: "my-lists",
+            displayName: "My Lists",
+            icon: "albums",
+        },
     ]
+
+    if (Platform.isTV) {
+        return (
+            <View className="flex-1 bg-background">
+                <View className="flex-1">
+                    <Tabs
+                        initialRouteName="(library)"
+                        detachInactiveScreens
+                        screenOptions={{
+                            headerShown: false,
+                            freezeOnBlur: true,
+                            animation: "none",
+                            tabBarStyle: { display: "none" },
+                        }}
+                    >
+                        {tabs.map(tab => (
+                            <Tabs.Screen
+                                key={tab.name}
+                                name={tab.name}
+                                options={{
+                                    ...tab.options,
+                                    headerTitle: tab.displayName,
+                                }}
+                            />
+                        ))}
+                    </Tabs>
+                </View>
+                <TVNavBar />
+            </View>
+        )
+    }
 
     return (
         <Tabs
@@ -59,4 +98,3 @@ export default function TabLayout() {
         </Tabs>
     )
 }
-

@@ -11,15 +11,16 @@ import { CenteredSpinner } from "@/components/shared/centered-spinner"
 import { LIBRARY_SEARCH_HEADER_BASE_HEIGHT, LibrarySearchHeader } from "@/components/shared/library-search-header"
 import { LuffyError } from "@/components/shared/luffy-error"
 import { OfflineBanner } from "@/components/shared/offline-banner"
+import { TVLibraryScreen } from "@/components/tv/tv-library-screen"
 import { ContinueWatchingItem, useAnimeLibraryCollection } from "@/hooks/use-anime-library-collection"
 import { useIOSScrollRefreshRateWorkaround } from "@/hooks/use-ios-scroll-refresh-rate-workaround"
 import { useIsServerConnected, useServerLocalAnimeRecords } from "@/lib/offline"
 import { filterEntriesByTitle } from "@/lib/utils/filtering"
-import { useIsFocused } from "@react-navigation/native"
+import { useIsFocused } from "expo-router"
 import { router, useFocusEffect } from "expo-router"
 import { useSetAtom } from "jotai"
 import * as React from "react"
-import { RefreshControl, View } from "react-native"
+import { Platform, RefreshControl, View } from "react-native"
 import Animated, { useAnimatedScrollHandler, useSharedValue } from "react-native-reanimated"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
@@ -31,6 +32,14 @@ type LibraryShelfSection = {
 }
 
 export default function LibraryScreen() {
+    if (Platform.isTV) {
+        return <TVLibraryScreen />
+    }
+
+    return <MobileLibraryScreen />
+}
+
+function MobileLibraryScreen() {
     const isConnected = useIsServerConnected()
     const isFocused = useIsFocused()
     const insets = useSafeAreaInsets()

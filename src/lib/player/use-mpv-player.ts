@@ -62,6 +62,7 @@ const INITIAL_STATE: PlayerState = {
     paused: true,
     currentTime: 0,
     duration: 0,
+    cacheSeconds: 0,
     eofReached: false,
     chapters: [],
     audioTracks: [],
@@ -97,6 +98,7 @@ export function useMpvPlayer() {
     const readyLoggedRef = React.useRef(false)
     const eofLoggedRef = React.useRef(false)
     const tracksLogRef = React.useRef<string | null>(null)
+    const statsTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
     // track whether we've applied auto-track + auto-play for the current source
     const hasAppliedDefaultTracks = React.useRef(false)
@@ -168,6 +170,10 @@ export function useMpvPlayer() {
             clearTimeout(bufferingTimerRef.current)
             bufferingTimerRef.current = null
         }
+        if (statsTimerRef.current !== null) {
+            clearTimeout(statsTimerRef.current)
+            statsTimerRef.current = null
+        }
         log.info("Loading player source", {
             ...getPlayerLogData(source),
             autoplay: shouldAutoplay,
@@ -182,6 +188,9 @@ export function useMpvPlayer() {
         return () => {
             if (bufferingTimerRef.current !== null) {
                 clearTimeout(bufferingTimerRef.current)
+            }
+            if (statsTimerRef.current !== null) {
+                clearTimeout(statsTimerRef.current)
             }
         }
     }, [])
@@ -205,12 +214,12 @@ export function useMpvPlayer() {
     }, [shouldAutoplay, source, videoSource?.url])
 
     const onNativeProgress = React.useCallback((event: NativeEvent<OnProgressEventPayload>) => {
-        const { position, duration, cacheSeconds: _cache } = event.nativeEvent
+        const { position, duration, cacheSeconds } = event.nativeEvent
         durationRef.current = duration
 
         setState(s => {
-            if (s.currentTime === position && s.duration === duration) return s
-            return { ...s, currentTime: position, duration }
+            if (s.currentTime === position && s.duration === duration && s.cacheSeconds === cacheSeconds) return s
+            return { ...s, currentTime: position, duration, cacheSeconds }
         })
     }, [])
 
@@ -252,6 +261,22 @@ export function useMpvPlayer() {
         if (!readyLoggedRef.current && (payload.isReadyToSeek === true || payload.isLoading === false)) {
             readyLoggedRef.current = true
             log.success("Player ready", getPlayerLogData(source))
+
+            const sourceId = source?.id ?? null
+            statsTimerRef.current = setTimeout(() => {
+                statsTimerRef.current = null
+                if (loadedSourceId.current !== sourceId) return
+
+                const ref = viewRef.current
+                if (!ref) return
+
+                void ref.getTechnicalInfo()
+                    .then(info => log.info("Player diagnostics", {
+                        ...getPlayerLogData(source),
+                        ...info,
+                    }))
+                    .catch(error => log.warning("Could not read player diagnostics", error))
+            }, 1500)
         }
 
         if (payload.eofReached === true && !eofLoggedRef.current) {

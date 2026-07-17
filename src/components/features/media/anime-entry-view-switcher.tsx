@@ -2,7 +2,7 @@ import { TabBarIcon } from "@/components/navigation/tab-bar-icon"
 import { cn } from "@/lib/utils"
 import Ionicons from "@expo/vector-icons/Ionicons"
 import * as React from "react"
-import { Platform, Pressable, useWindowDimensions, View } from "react-native"
+import { Platform, Pressable, Text, useWindowDimensions, View } from "react-native"
 import Animated, { interpolate, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
@@ -33,7 +33,9 @@ export function AnimeEntryViewSwitcher({ currentView, onViewChange, isOffline, h
     const insets = useSafeAreaInsets()
     const { width: screenWidth } = useWindowDimensions()
     const usableWidth = Math.max(0, screenWidth - insets.left - insets.right)
-    const barWidth = Math.min(BAR_LIMIT, Math.max(0, usableWidth - BAR_GAP * 2))
+    const barWidth = Platform.isTV
+        ? Math.min(900, Math.max(0, usableWidth - 96))
+        : Math.min(BAR_LIMIT, Math.max(0, usableWidth - BAR_GAP * 2))
     const barLeft = insets.left + (usableWidth - barWidth) / 2
     const visibleItems = React.useMemo(() => {
         let items = VIEW_ITEMS
@@ -51,13 +53,16 @@ export function AnimeEntryViewSwitcher({ currentView, onViewChange, isOffline, h
             pointerEvents="box-none"
             className="absolute"
             style={{
-                bottom: Math.max(insets.bottom, Platform.OS === "ios" ? 20 : 10),
+                bottom: Platform.isTV ? 28 : Math.max(insets.bottom, Platform.OS === "ios" ? 20 : 10),
                 left: barLeft,
                 width: barWidth,
             }}
         >
             <View
-                className="flex-row justify-between overflow-hidden rounded-full bg-background px-5 py-4"
+                className={cn(
+                    "flex-row justify-between overflow-hidden bg-background",
+                    Platform.isTV ? "rounded-2xl border border-white/10 px-4 py-3" : "rounded-full px-5 py-4",
+                )}
                 style={{ elevation: 10 }}
             >
                 {visibleItems.map(item => (
@@ -82,6 +87,7 @@ type AnimeEntryViewButtonProps = {
 }
 
 function AnimeEntryViewButton({ label, icon, active, onPress }: AnimeEntryViewButtonProps) {
+    const [focused, setFocused] = React.useState(false)
     const scale = useSharedValue(active ? 0 : 1)
 
     React.useEffect(() => {
@@ -105,21 +111,42 @@ function AnimeEntryViewButton({ label, icon, active, onPress }: AnimeEntryViewBu
     return (
         <Pressable
             onPress={onPress}
-            className="flex-1 items-center justify-center gap-1"
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            className={cn(
+                "flex-1 items-center justify-center gap-1",
+                Platform.isTV && "min-h-14 flex-row rounded-xl px-3",
+                Platform.isTV && focused && "bg-white/15",
+            )}
         >
-            <Animated.View style={animatedIconStyle}>
-                <TabBarIcon
-                    name={icon}
-                    size={24}
-                    className={cn("text-gray", { "text-brand-300": active })}
-                />
-            </Animated.View>
-            <Animated.Text
-                className={cn("text-xs text-gray", { "text-brand-300": active })}
-                style={animatedTextStyle}
-            >
-                {label}
-            </Animated.Text>
+            {Platform.isTV ? (
+                <>
+                    <TabBarIcon
+                        name={icon}
+                        size={22}
+                        className={cn("text-gray", (active || focused) && "text-brand-200")}
+                    />
+                    <Text className={cn("text-sm font-semibold text-white/50", (active || focused) && "text-white")}>
+                        {label}
+                    </Text>
+                </>
+            ) : (
+                <>
+                    <Animated.View style={animatedIconStyle}>
+                        <TabBarIcon
+                            name={icon}
+                            size={24}
+                            className={cn("text-gray", { "text-brand-300": active })}
+                        />
+                    </Animated.View>
+                    <Animated.Text
+                        className={cn("text-xs text-gray", { "text-brand-300": active })}
+                        style={animatedTextStyle}
+                    >
+                        {label}
+                    </Animated.Text>
+                </>
+            )}
         </Pressable>
     )
 }

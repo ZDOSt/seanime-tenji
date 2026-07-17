@@ -155,7 +155,11 @@ final class MPVLayerRenderer {
 
         // Composite subtitles into the AVFoundation video frames from startup so
         // PiP and rotation changes use the same subtitle path.
+        #if targetEnvironment(simulator)
+        checkError(mpv_set_option_string(handle, "avfoundation-composite-osd", "no"))
+        #else
         checkError(mpv_set_option_string(handle, "avfoundation-composite-osd", "yes"))
+        #endif
 
         // Hardware decoding
         #if targetEnvironment(simulator)
@@ -210,7 +214,7 @@ final class MPVLayerRenderer {
 
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            if #available(iOS 18.0, *) {
+            if #available(iOS 18.0, tvOS 17.0, *) {
                 self.displayLayer.sampleBufferRenderer.flush(removingDisplayedImage: true, completionHandler: nil)
             } else {
                 self.displayLayer.flushAndRemoveImage()
@@ -712,7 +716,7 @@ final class MPVLayerRenderer {
 
     func addSubtitleFile(url: String, select: Bool = true) {
         guard let handle = mpv else { return }
-        let flag = select ? "select" : "cached"
+        let flag = select ? "select" : "auto"
         commandSync(handle, ["sub-add", url, flag])
     }
 

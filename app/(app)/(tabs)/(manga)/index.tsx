@@ -12,10 +12,10 @@ import { useIOSScrollRefreshRateWorkaround } from "@/hooks/use-ios-scroll-refres
 import { useMangaLibraryCollection } from "@/hooks/use-manga-library-collection"
 import { useIsServerConnected } from "@/lib/offline"
 import { filterEntriesByTitle } from "@/lib/utils/filtering"
-import { useIsFocused } from "@react-navigation/native"
+import { useIsFocused } from "expo-router"
 import { router, useFocusEffect } from "expo-router"
 import * as React from "react"
-import { RefreshControl, View } from "react-native"
+import { Platform, RefreshControl, View } from "react-native"
 import Animated, { useAnimatedScrollHandler, useSharedValue } from "react-native-reanimated"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
@@ -167,7 +167,7 @@ export default function MangaLibraryScreen() {
                                     />
                                 ) : null
                             }
-                            ListFooterComponent={<DownloadedMangaList />}
+                            ListFooterComponent={Platform.isTV ? null : <DownloadedMangaList />}
                             ListEmptyComponent={isConnected && currentlyReadingEntries.length === 0 ? (
                                 <LuffyError
                                     title="Your manga library is empty"
@@ -205,6 +205,4 @@ export default function MangaLibraryScreen() {
         </View>
     )
 }
-
-
 

@@ -11,4 +11,5 @@ module.exports = withUniwindConfig(config, {
     cssEntryFile: "./global.css",
     polyfills: { rem: 14 },
     dtsFile: "./uniwind-types.d.ts",
+    isTV: process.env.EXPO_TV === "1",
 })

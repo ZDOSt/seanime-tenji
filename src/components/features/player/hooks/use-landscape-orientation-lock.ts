@@ -1,30 +1,43 @@
 import { MpvPlayerModule } from "expo-mpv-player"
-import * as ScreenOrientation from "expo-screen-orientation"
-import { Accelerometer } from "expo-sensors"
 import React from "react"
 import { AppState, InteractionManager, Platform } from "react-native"
 
+type ScreenOrientationModule = typeof import("expo-screen-orientation")
+type Orientation = import("expo-screen-orientation").Orientation
+type OrientationLock = import("expo-screen-orientation").OrientationLock
+
+const ScreenOrientation = Platform.isTV
+    ? null
+    : require("expo-screen-orientation") as ScreenOrientationModule
+const Accelerometer = Platform.isTV
+    ? null
+    : (require("expo-sensors") as typeof import("expo-sensors")).Accelerometer
+
 type UseLandscapeOrientationLockParams = {
-    restoreLock?: ScreenOrientation.OrientationLock
+    restoreLock?: OrientationLock
 }
 
-const PORTRAIT_ORIENTATIONS = new Set<ScreenOrientation.Orientation>([
-    ScreenOrientation.Orientation.PORTRAIT_DOWN,
-    ScreenOrientation.Orientation.PORTRAIT_UP,
-    ScreenOrientation.Orientation.UNKNOWN,
-])
-
 export function useLandscapeOrientationLock({
-    restoreLock = ScreenOrientation.OrientationLock.PORTRAIT_UP,
+    restoreLock,
 }: UseLandscapeOrientationLockParams = {}) {
-    const currentLockRef = React.useRef<ScreenOrientation.OrientationLock>(
-        Platform.OS === "ios"
-            ? ScreenOrientation.OrientationLock.LANDSCAPE_RIGHT
-            : ScreenOrientation.OrientationLock.LANDSCAPE,
+    const currentLockRef = React.useRef<OrientationLock | null>(
+        ScreenOrientation
+            ? Platform.OS === "ios"
+                ? ScreenOrientation.OrientationLock.LANDSCAPE_RIGHT
+                : ScreenOrientation.OrientationLock.LANDSCAPE
+            : null,
     )
 
     React.useEffect(() => {
+        if (!ScreenOrientation || !Accelerometer || currentLockRef.current === null) return
+
         let accelerometerSubscription: { remove: () => void } | null = null
+        let currentLock = currentLockRef.current
+        const portraitOrientations = new Set<Orientation>([
+            ScreenOrientation.Orientation.PORTRAIT_DOWN,
+            ScreenOrientation.Orientation.PORTRAIT_UP,
+            ScreenOrientation.Orientation.UNKNOWN,
+        ])
 
         const lockNativeLandscape = () => {
             if (Platform.OS !== "ios") return
@@ -47,32 +60,33 @@ export function useLandscapeOrientationLock({
         }
 
         const lockLandscape = async (
-            lockType: ScreenOrientation.OrientationLock = currentLockRef.current,
+            lockType: OrientationLock = currentLock,
         ) => {
             try {
                 lockNativeLandscape()
                 await ScreenOrientation.lockAsync(lockType)
+                currentLock = lockType
                 currentLockRef.current = lockType
             }
             catch {
             }
         }
 
-        void lockLandscape(currentLockRef.current)
+        void lockLandscape(currentLock)
 
         const orientationSubscription = Platform.OS === "ios"
             ? ScreenOrientation.addOrientationChangeListener(({ orientationInfo }) => {
-                if (!PORTRAIT_ORIENTATIONS.has(orientationInfo.orientation)) return
-                void lockLandscape(currentLockRef.current)
+                if (!portraitOrientations.has(orientationInfo.orientation)) return
+                void lockLandscape(currentLock)
             })
             : null
 
         if (Platform.OS === "ios") {
             Accelerometer.setUpdateInterval(500)
             accelerometerSubscription = Accelerometer.addListener(({ x }) => {
-                if (x > 0.6 && currentLockRef.current !== ScreenOrientation.OrientationLock.LANDSCAPE_LEFT) {
+                if (x > 0.6 && currentLock !== ScreenOrientation.OrientationLock.LANDSCAPE_LEFT) {
                     void lockLandscape(ScreenOrientation.OrientationLock.LANDSCAPE_LEFT)
-                } else if (x < -0.6 && currentLockRef.current !== ScreenOrientation.OrientationLock.LANDSCAPE_RIGHT) {
+                } else if (x < -0.6 && currentLock !== ScreenOrientation.OrientationLock.LANDSCAPE_RIGHT) {
                     void lockLandscape(ScreenOrientation.OrientationLock.LANDSCAPE_RIGHT)
                 }
             })
@@ -80,7 +94,7 @@ export function useLandscapeOrientationLock({
 
         const appStateSubscription = AppState.addEventListener("change", nextState => {
             if (nextState === "active") {
-                void lockLandscape(currentLockRef.current)
+                void lockLandscape(currentLock)
             }
         })
 
@@ -92,7 +106,9 @@ export function useLandscapeOrientationLock({
 
             requestAnimationFrame(() => {
                 InteractionManager.runAfterInteractions(() => {
-                    void ScreenOrientation.lockAsync(restoreLock)
+                    void ScreenOrientation.lockAsync(
+                        restoreLock ?? ScreenOrientation.OrientationLock.PORTRAIT_UP,
+                    )
                 })
             })
         }

@@ -4,6 +4,7 @@ import { FilterButton, SearchFilterSheet } from "@/components/features/discover/
 import { MediaEntryCard } from "@/components/features/media/media-entry-card"
 import { SafeView } from "@/components/layout/layout-view"
 import { LibrarySearchBar } from "@/components/shared/library-search-bar"
+import { TVSearchScreen } from "@/components/tv/tv-search-screen"
 import { useIOSScrollRefreshRateWorkaround } from "@/hooks/use-ios-scroll-refresh-rate-workaround"
 import { getMediaGridLayout } from "@/lib/responsive-card-layout"
 import { DEFAULT_SEARCH_PARAMS, getActiveFiltersCount, isSearchActive, SearchParams, searchParamsAtom } from "@/lib/search/search.atoms"
@@ -11,7 +12,7 @@ import Ionicons from "@expo/vector-icons/Ionicons"
 import { router, useLocalSearchParams } from "expo-router"
 import { useAtom } from "jotai"
 import * as React from "react"
-import { ActivityIndicator, FlatList, Pressable, Text, useWindowDimensions, View } from "react-native"
+import { ActivityIndicator, FlatList, Platform, Pressable, Text, useWindowDimensions, View } from "react-native"
 import Animated, { FadeIn } from "react-native-reanimated"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { DiscoverModeToggle } from "."
@@ -48,6 +49,14 @@ function FooterLoader({ isLoading }: { isLoading: boolean }) {
 ///////////////////////////////////////////////////////////////////////////////
 
 export default function SearchScreen() {
+    if (Platform.isTV) {
+        return <TVSearchScreen />
+    }
+
+    return <MobileSearchScreen />
+}
+
+function MobileSearchScreen() {
     const insets = useSafeAreaInsets()
     const { type: initialType } = useLocalSearchParams<{ type?: string }>()
     const { width: screenWidth } = useWindowDimensions()

@@ -3,6 +3,9 @@
   "compilerOptions": {
     "strict": true,
     "allowImportingTsExtensions": true,
+    "types": [
+      "node"
+    ],
     "paths": {
       "@/*": [
         "./src/*"
@@ -21,6 +24,9 @@
       ],
       "expo-offline-logger": [
         "./modules/expo-offline-logger/src/index"
+      ],
+      "expo-tv-focus": [
+        "./modules/expo-tv-focus/src/index"
       ]
     }
   },

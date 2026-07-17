@@ -13,18 +13,25 @@ import { useGetRawAnilistMangaCollection, useGetRawAnilistMangaCollectionTags } 
 import { useServerStatus } from "@/atoms/server.atoms"
 import { FilterButton } from "@/components/features/discover/search-filter-sheet"
 import { MediaEntryCard } from "@/components/features/media/media-entry-card"
-import { CollectionFilterSheet, countActiveCollectionFilters } from "@/components/features/my-lists/collection-filter-sheet"
+import { CollectionFilterSheet } from "@/components/features/my-lists/collection-filter-sheet"
 import { InlineSelect } from "@/components/shared/inline-select"
 import { LibrarySearchBar } from "@/components/shared/library-search-bar"
+import { TVMyListsScreen } from "@/components/tv/tv-my-lists-screen"
 import { useIOSScrollRefreshRateWorkaround } from "@/hooks/use-ios-scroll-refresh-rate-workaround"
 import { useIsServerConnected } from "@/lib/offline"
 import { getMediaGridLayout } from "@/lib/responsive-card-layout"
 import { cn } from "@/lib/utils"
-import { CollectionParams, DEFAULT_COLLECTION_PARAMS, filterEntriesByTitle, filterListEntries } from "@/lib/utils/filtering"
+import {
+    CollectionParams,
+    countActiveCollectionFilters,
+    DEFAULT_COLLECTION_PARAMS,
+    filterEntriesByTitle,
+    filterListEntries,
+} from "@/lib/utils/filtering"
 import Ionicons from "@expo/vector-icons/Ionicons"
 import { router } from "expo-router"
 import * as React from "react"
-import { ActivityIndicator, FlatList, Pressable, Text, useWindowDimensions, View } from "react-native"
+import { ActivityIndicator, FlatList, Platform, Pressable, Text, useWindowDimensions, View } from "react-native"
 import { ScrollView } from "react-native-gesture-handler"
 import Animated, { FadeIn } from "react-native-reanimated"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
@@ -274,6 +281,10 @@ const CollectionGridRow = React.memo(function CollectionGridRow({
 ////////////////////////// Main screen
 
 export default function MyListsScreen() {
+    if (Platform.isTV) {
+        return <TVMyListsScreen />
+    }
+
     const insets = useSafeAreaInsets()
     const { width: screenWidth } = useWindowDimensions()
     const { cardWidth, numColumns } = React.useMemo(

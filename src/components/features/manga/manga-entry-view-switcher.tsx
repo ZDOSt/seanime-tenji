@@ -7,6 +7,10 @@ import Animated, { interpolate, useAnimatedStyle, useSharedValue, withSpring } f
 
 export type MangaEntryView = "chapters" | "info" | "downloaded"
 
+export function tvMangaEntryView(view: MangaEntryView): MangaEntryView {
+    return view === "downloaded" ? "chapters" : view
+}
+
 type MangaEntryViewSwitcherProps = {
     currentView: MangaEntryView
     onViewChange: (view: MangaEntryView) => void
@@ -23,6 +27,10 @@ const VIEW_ITEMS: Array<{ label: string, icon: React.ComponentProps<typeof Ionic
 const OFFLINE_DISABLED_VIEWS: Set<MangaEntryView> = new Set(["chapters"])
 
 export function MangaEntryViewSwitcher({ currentView, onViewChange, bottomInset, isOffline }: MangaEntryViewSwitcherProps) {
+    const items = Platform.isTV
+        ? VIEW_ITEMS.filter(item => item.view !== "downloaded")
+        : VIEW_ITEMS
+
     return (
         <View
             pointerEvents="box-none"
@@ -35,7 +43,7 @@ export function MangaEntryViewSwitcher({ currentView, onViewChange, bottomInset,
                 className="flex-row justify-between overflow-hidden rounded-full bg-background px-5 py-4"
                 style={{ elevation: 10 }}
             >
-                {VIEW_ITEMS.map(item => {
+                {items.map(item => {
                     const disabled = isOffline && OFFLINE_DISABLED_VIEWS.has(item.view)
                     return (
                         <MangaEntryViewButton

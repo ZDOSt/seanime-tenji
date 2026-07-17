@@ -3,6 +3,7 @@ import { MediaEntryCard } from "@/components/features/media/media-entry-card"
 import { Animations } from "@/components/shared/animations"
 import { getHorizontalCardRenderCount, getHorizontalMediaCardWidth } from "@/lib/responsive-card-layout"
 import { Ionicons } from "@expo/vector-icons"
+import { downloadedAnimeMedia, downloadedMangaMedia, type DownloadedMedia } from "@/lib/downloads/downloaded-media"
 import { router } from "expo-router"
 import React from "react"
 import { FlatList, ListRenderItemInfo, Text, useWindowDimensions, View } from "react-native"
@@ -11,46 +12,9 @@ import Animated from "react-native-reanimated"
 const SPACING = 10
 const PADDING_HORIZONTAL = 20
 
-type DownloadedMediaShelfItem = {
-    mediaId: number
-    title: string
-    coverImageUrl?: string
-    downloadedCount: number
-}
-
 type DownloadedMediaShelfProps<T extends "anime" | "manga"> = {
     type: T
-    items: Array<DownloadedMediaShelfItem>
-}
-
-function fromDownloadedAnimeMedia(item: DownloadedMediaShelfItem): AL_BaseAnime {
-    return {
-        id: item.mediaId,
-        type: "ANIME",
-        title: {
-            userPreferred: item.title,
-        },
-        coverImage: {
-            extraLarge: item.coverImageUrl,
-            large: item.coverImageUrl,
-            medium: item.coverImageUrl,
-        },
-    }
-}
-
-function fromDownloadedMangaMedia(item: DownloadedMediaShelfItem): AL_BaseManga {
-    return {
-        id: item.mediaId,
-        type: "MANGA",
-        title: {
-            userPreferred: item.title,
-        },
-        coverImage: {
-            extraLarge: item.coverImageUrl,
-            large: item.coverImageUrl,
-            medium: item.coverImageUrl,
-        },
-    }
+    items: Array<DownloadedMedia>
 }
 
 function DownloadCountOverlay({ count }: { count: number }) {
@@ -77,18 +41,18 @@ export function DownloadedMediaShelf<T extends "anime" | "manga">({ type, items 
 
     if (items.length === 0) return null
 
-    const keyExtractor = React.useCallback((item: DownloadedMediaShelfItem) => String(item.mediaId), [])
+    const keyExtractor = React.useCallback((item: DownloadedMedia) => String(item.mediaId), [])
 
-    const getItemLayout = React.useCallback((_: ArrayLike<DownloadedMediaShelfItem> | null | undefined, index: number) => ({
+    const getItemLayout = React.useCallback((_: ArrayLike<DownloadedMedia> | null | undefined, index: number) => ({
         length: itemFullWidth,
         offset: itemFullWidth * index,
         index,
     }), [itemFullWidth])
 
-    const renderItem = React.useCallback(({ item }: ListRenderItemInfo<DownloadedMediaShelfItem>) => {
+    const renderItem = React.useCallback(({ item }: ListRenderItemInfo<DownloadedMedia>) => {
         const media = type === "anime"
-            ? fromDownloadedAnimeMedia(item)
-            : fromDownloadedMangaMedia(item)
+            ? downloadedAnimeMedia(item)
+            : downloadedMangaMedia(item)
 
         return (
             <MediaEntryCard

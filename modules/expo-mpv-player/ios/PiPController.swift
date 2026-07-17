@@ -17,6 +17,26 @@ protocol PiPControllerDelegate: AnyObject {
     func pipControllerCurrentPosition(_ controller: PiPController) -> Double
 }
 
+#if os(tvOS)
+final class PiPController: NSObject {
+    weak var delegate: PiPControllerDelegate?
+
+    var isPictureInPictureSupported: Bool { false }
+    var isPictureInPictureActive: Bool { false }
+
+    init(sampleBufferDisplayLayer: AVSampleBufferDisplayLayer) {
+        super.init()
+    }
+
+    @discardableResult
+    func startPictureInPicture() -> Bool { false }
+
+    func stopPictureInPicture() {}
+    func updatePlaybackState() {}
+    func setCurrentTimeFromSeconds(_ seconds: Double, duration: Double) {}
+    func setPlaybackRate(_ rate: Float) {}
+}
+#else
 final class PiPController: NSObject {
     private var pipController: AVPictureInPictureController?
     private weak var sampleBufferDisplayLayer: AVSampleBufferDisplayLayer?
@@ -214,3 +234,4 @@ extension PiPController: AVPictureInPictureSampleBufferPlaybackDelegate {
         completion()
     }
 }
+#endif

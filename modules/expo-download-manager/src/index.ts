@@ -18,6 +18,12 @@ import type {
 } from "./ExpoDownloadManager.types"
 import ExpoDownloadManagerModule from "./ExpoDownloadManagerModule"
 
+const missingMessage = "Downloads are not available on this platform"
+
+function emptySubscription(): EventSubscription {
+    return { remove() {} }
+}
+
 export type {
     ActiveDownload,
     DownloadCompleteEvent,
@@ -30,6 +36,10 @@ export type {
 
 export const ExpoDownloadManager = {
     startDownload(request: DownloadRequest): Promise<number> {
+        if (!ExpoDownloadManagerModule) {
+            return Promise.reject(new Error(missingMessage))
+        }
+
         return ExpoDownloadManagerModule.startDownload(
             request.id,
             request.url,
@@ -40,35 +50,35 @@ export const ExpoDownloadManager = {
     },
 
     cancelDownload(taskId: number): void {
-        ExpoDownloadManagerModule.cancelDownload(taskId)
+        ExpoDownloadManagerModule?.cancelDownload(taskId)
     },
 
     cancelDownloadById(id: string): void {
-        ExpoDownloadManagerModule.cancelDownloadById(id)
+        ExpoDownloadManagerModule?.cancelDownloadById(id)
     },
 
     cancelAllDownloads(): void {
-        ExpoDownloadManagerModule.cancelAllDownloads()
+        ExpoDownloadManagerModule?.cancelAllDownloads()
     },
 
     getActiveDownloads(): Promise<ActiveDownload[]> {
-        return ExpoDownloadManagerModule.getActiveDownloads()
+        return ExpoDownloadManagerModule?.getActiveDownloads() ?? Promise.resolve([])
     },
 
     addProgressListener(listener: (event: DownloadProgressEvent) => void): EventSubscription {
-        return ExpoDownloadManagerModule.addListener("onDownloadProgress", listener)
+        return ExpoDownloadManagerModule?.addListener("onDownloadProgress", listener) ?? emptySubscription()
     },
 
     addCompleteListener(listener: (event: DownloadCompleteEvent) => void): EventSubscription {
-        return ExpoDownloadManagerModule.addListener("onDownloadComplete", listener)
+        return ExpoDownloadManagerModule?.addListener("onDownloadComplete", listener) ?? emptySubscription()
     },
 
     addErrorListener(listener: (event: DownloadErrorEvent) => void): EventSubscription {
-        return ExpoDownloadManagerModule.addListener("onDownloadError", listener)
+        return ExpoDownloadManagerModule?.addListener("onDownloadError", listener) ?? emptySubscription()
     },
 
     addStartedListener(listener: (event: DownloadStartedEvent) => void): EventSubscription {
-        return ExpoDownloadManagerModule.addListener("onDownloadStarted", listener)
+        return ExpoDownloadManagerModule?.addListener("onDownloadStarted", listener) ?? emptySubscription()
     },
 }
 

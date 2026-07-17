@@ -5,7 +5,7 @@ import { EpisodeCard } from "@/components/features/anime/episode-card"
 import { getEpisodeSpoilerState } from "@/lib/anime-spoilers"
 import { getEpisodeCardRowHeight, getEpisodeCardWidth, getHorizontalCardRenderCount } from "@/lib/responsive-card-layout"
 import React from "react"
-import { ActivityIndicator, FlatList, ListRenderItemInfo, Text, useWindowDimensions, View } from "react-native"
+import { ActivityIndicator, FlatList, ListRenderItemInfo, Platform, Text, useWindowDimensions, View } from "react-native"
 
 const SPACING = 20
 const CONTENT_CONTAINER_STYLE = { paddingHorizontal: SPACING }
@@ -126,7 +126,7 @@ export function EpisodeCardList(props: EpisodeCardListProps) {
                     initialNumToRender={Math.min(episodes.length, renderCount)}
                     maxToRenderPerBatch={renderCount}
                     windowSize={5}
-                    removeClippedSubviews
+                    removeClippedSubviews={!Platform.isTV}
                     snapToInterval={itemFullWidth}
                     snapToAlignment="start"
                     decelerationRate="fast"

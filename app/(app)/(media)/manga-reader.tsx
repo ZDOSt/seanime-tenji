@@ -1,5 +1,11 @@
-import { MangaReaderScreen } from "@/components/features/manga/reader/manga-reader-screen"
 import { useLocalSearchParams } from "expo-router"
+import { Platform } from "react-native"
+
+type MangaReaderModule = typeof import("@/components/features/manga/reader/manga-reader-screen")
+
+const MangaReaderScreen = Platform.isTV
+    ? null
+    : (require("@/components/features/manga/reader/manga-reader-screen") as MangaReaderModule).MangaReaderScreen
 
 export default function Screen() {
     const params = useLocalSearchParams<{
@@ -11,7 +17,7 @@ export default function Screen() {
 
     const mediaId = Number(params.mediaId)
 
-    if (!mediaId || !params.provider || !params.chapterId) {
+    if (!MangaReaderScreen || !mediaId || !params.provider || !params.chapterId) {
         return null
     }
 

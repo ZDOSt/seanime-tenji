@@ -99,8 +99,21 @@ export type TechnicalInfo = {
     videoCodec?: string
     audioCodec?: string
     fps?: number
+    displayFps?: number
+    videoBitrate?: number
     cacheSeconds?: number
+    cacheLimit?: number
+    maxCacheMiB?: number
+    backCacheMiB?: number
     droppedFrames?: number
+    decoderDroppedFrames?: number
+    isBuffering?: boolean
+    voDriver?: string
+    hwdec?: string
+    hwPixelFormat?: string
+    requestedHwdec?: string
+    hwdecOptionResult?: number
+    decoderError?: string
 }
 
 ///////////////////////////////////////////////////////////////////////////////

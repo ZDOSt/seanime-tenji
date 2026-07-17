@@ -7,7 +7,7 @@ import { useIsServerConnected } from "@/lib/offline"
 import { Ionicons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
 import React, { useMemo, useState } from "react"
-import { Text, View } from "react-native"
+import { Platform, Text, View } from "react-native"
 
 type MangaEntryActionBarProps = {
     entry: Manga_Entry
@@ -38,8 +38,8 @@ export function MangaEntryActionBar({
         )
     }, [allDownloadedChapters, chapters, entry.mediaId, progress])
 
-    const hasDownloads = downloadedChapters.length > 0
-    const hasChapters = chapters.length > 0 && isConnected
+    const hasDownloads = !Platform.isTV && downloadedChapters.length > 0
+    const hasChapters = !Platform.isTV && chapters.length > 0 && isConnected
 
     return (
         <>
@@ -93,13 +93,15 @@ export function MangaEntryActionBar({
                 )}
             </View>
 
-            <DownloadMangaChaptersModal
-                entry={entry}
-                provider={provider}
-                chapters={chapters}
-                open={downloadModalOpen}
-                onOpenChange={setDownloadModalOpen}
-            />
+            {!Platform.isTV && (
+                <DownloadMangaChaptersModal
+                    entry={entry}
+                    provider={provider}
+                    chapters={chapters}
+                    open={downloadModalOpen}
+                    onOpenChange={setDownloadModalOpen}
+                />
+            )}
         </>
     )
 }

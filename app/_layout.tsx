@@ -10,18 +10,21 @@ import { OtaUpdatePrompt } from "@/lib/ota/updates"
 import { hydrateQueryClient, OFFLINE_QUERY_KEYS, setupQueryPersistence } from "@/lib/query-persistence"
 import { useColorScheme } from "@/lib/useColorScheme"
 import { Ionicons } from "@expo/vector-icons"
-import { DefaultTheme, Theme, ThemeProvider } from "@react-navigation/native"
 import { PortalHost } from "@rn-primitives/portal"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { Slot, SplashScreen } from "expo-router"
+import Constants from "expo-constants"
+import { DefaultTheme, Slot, SplashScreen, type Theme, ThemeProvider } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { createStore, Provider as JotaiProvider } from "jotai"
 import * as React from "react"
-import { StyleSheet, Text, View } from "react-native"
+import { Platform, StyleSheet, Text, View } from "react-native"
 import { GestureHandlerRootView } from "react-native-gesture-handler"
 import Toast from "react-native-toast-message"
 import type { BaseToastProps } from "react-native-toast-message"
 import "react-native-reanimated"
+import { useTVFocusLogger } from "@/components/tv/tv-focus"
+import { TVOtaUpdatePrompt } from "@/components/tv/tv-ota-update-prompt"
+import { ExpoTVFocus } from "expo-tv-focus"
 
 const DARK_THEME: Theme = {
     ...DefaultTheme,
@@ -92,8 +95,26 @@ export default function RootLayout() {
     const [isColorSchemeLoaded, setIsColorSchemeLoaded] = React.useState(false)
 
     const [store] = React.useState(createStore())
+    const isTVDev = Platform.isTV && Constants.expoConfig?.extra?.tv?.isDev === true
 
+    useTVFocusLogger()
     useConnectionStateMonitor()
+
+    React.useEffect(() => {
+        if (!Platform.isTVOS) return
+
+        const trace = __DEV__
+            ? ExpoTVFocus.addTraceListener(({ message }) => {
+                console.log(`[NativeFocus] ${message}`)
+            })
+            : null
+
+        void ExpoTVFocus.setEnabled(true)
+        return () => {
+            trace?.remove()
+            void ExpoTVFocus.setEnabled(false)
+        }
+    }, [])
 
     React.useEffect(() => {
         (async () => {
@@ -119,8 +140,9 @@ export default function RootLayout() {
                         <QueryClientProvider client={queryClient}>
                             <WebsocketProvider>
                                 <ServerUrlWrapper>
-                                    <OtaUpdatePrompt />
-                                    <AppReleaseUpdatePrompt />
+                                    {Platform.isTV && !isTVDev && <TVOtaUpdatePrompt />}
+                                    {!isTVDev && <OtaUpdatePrompt />}
+                                    {!isTVDev && <AppReleaseUpdatePrompt />}
                                     <Slot />
                                     <PortalHost />
                                 </ServerUrlWrapper>

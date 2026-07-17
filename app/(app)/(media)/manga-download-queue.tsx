@@ -19,13 +19,22 @@ import {
 } from "@/lib/downloads"
 import { Ionicons } from "@expo/vector-icons"
 import { Image } from "expo-image"
+import { Redirect } from "expo-router"
 import * as React from "react"
-import { Alert, Pressable, ScrollView, Text, View } from "react-native"
+import { Alert, Platform, Pressable, ScrollView, Text, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 const QUEUE_PAGE_SIZE = 30
 
 export default function MangaDownloadQueueScreen() {
+    if (Platform.isTV) {
+        return <Redirect href="/(app)/(tabs)/(library)" />
+    }
+
+    return <MobileMangaDownloadQueueScreen />
+}
+
+function MobileMangaDownloadQueueScreen() {
     const insets = useSafeAreaInsets()
     const activeDownloads = useActiveMangaDownloads()
     const failedDownloads = useFailedMangaDownloads()

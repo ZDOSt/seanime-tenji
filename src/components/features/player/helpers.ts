@@ -16,6 +16,12 @@ export function formatSecondsLabel(seconds: number): string {
     return `${seconds}s`
 }
 
+export function isSkippableChapter(title?: string) {
+    if (!title) return false
+    const normalized = title.trim().toLowerCase()
+    return /opening$|^opening\s|^op$|ending$|^ending\s|^ed$|^credits/i.test(normalized)
+}
+
 export function getChapterAtTime(
     chapters: PlayerChapter[] | undefined,
     time: number,

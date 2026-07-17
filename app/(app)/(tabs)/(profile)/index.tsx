@@ -6,6 +6,7 @@ import { ProfileMenuItem, ProfileMenuSection, ProfileMenuToggle, RowDivider } fr
 import { SafeView } from "@/components/layout/layout-view"
 import { Badge } from "@/components/ui/badge"
 import { Text as UIText } from "@/components/ui/text"
+import { TVSettingsScreen } from "@/components/tv/tv-settings-screen"
 import { useIOSScrollRefreshRateWorkaround } from "@/hooks/use-ios-scroll-refresh-rate-workaround"
 import { checkForAppReleaseUpdateManually } from "@/lib/app-release-updates"
 import {
@@ -22,8 +23,8 @@ import {
 import { useIsServerConnected, useManualOfflineMode, useServerConnectionState } from "@/lib/offline"
 import { checkForOtaUpdateManually, getOtaVersionInfo } from "@/lib/ota/updates"
 import { type ActiveStreamSession, activeStreamSessionAtom } from "@/lib/player"
-import { getPlatformExternalPlayers } from "@/lib/player/external-players"
 import { getPlayerPreferences } from "@/lib/player/player-preferences"
+import { downloadLabel, playerLabel, streamLabel } from "@/lib/profile/profile-info"
 import { cn } from "@/lib/utils"
 import { toast } from "@/lib/utils/toast"
 import { Ionicons } from "@expo/vector-icons"
@@ -31,10 +32,18 @@ import { Image } from "expo-image"
 import { router } from "expo-router"
 import { useAtomValue } from "jotai"
 import * as React from "react"
-import { ActivityIndicator, Alert, ScrollView, Text, View } from "react-native"
+import { ActivityIndicator, Alert, Platform, ScrollView, Text, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 export default function ProfileScreen() {
+    if (Platform.isTV) {
+        return <TVSettingsScreen />
+    }
+
+    return <MobileProfileScreen />
+}
+
+function MobileProfileScreen() {
     const user = useCurrentUser()
     const insets = useSafeAreaInsets()
     const connectionState = useServerConnectionState()
@@ -97,7 +106,7 @@ export default function ProfileScreen() {
     const otaVersionInfo = React.useMemo(() => getOtaVersionInfo(), [])
 
     const [externalPlayerLabel, setExternalPlayerLabel] = React.useState(() =>
-        getExternalPlayerLabel(getPlayerPreferences().externalPlayerTemplate),
+        playerLabel(getPlayerPreferences().externalPlayerTemplate),
     )
 
     const handleChangeServerUrlPress = React.useCallback(() => {
@@ -117,7 +126,7 @@ export default function ProfileScreen() {
     const handlePlayerPickerClose = (open: boolean) => {
         setPlayerPickerOpen(open)
         if (!open) {
-            setExternalPlayerLabel(getExternalPlayerLabel(getPlayerPreferences().externalPlayerTemplate))
+            setExternalPlayerLabel(playerLabel(getPlayerPreferences().externalPlayerTemplate))
         }
     }
 
@@ -260,7 +269,7 @@ export default function ProfileScreen() {
                             <ProfileMenuItem
                                 icon={activeStream.streamMode === "debrid" ? "cloud-outline" : "radio-outline"}
                                 label="Playback Session"
-                                detail={formatActiveStreamDetail(activeStream)}
+                                detail={streamLabel(activeStream)}
                                 accessory={<ActiveStreamBadge status={activeStream.status} />}
                                 onPress={() => router.push("/(app)/(tabs)/(profile)/active-stream" as never)}
                             />
@@ -271,12 +280,12 @@ export default function ProfileScreen() {
                         <ProfileMenuItem
                             icon="tv-outline"
                             label="Anime Downloads"
-                            detail={formatDownloadMenuDetail({
-                                activeCount: activeAnimeDownloads.length,
-                                failedCount: failedAnimeDownloads.length,
-                                downloadedCount: downloadedAnime.length,
-                                sizeLabel: totalAnimeSize.formatted,
-                                mediaLabel: "anime",
+                            detail={downloadLabel({
+                                active: activeAnimeDownloads.length,
+                                failed: failedAnimeDownloads.length,
+                                downloaded: downloadedAnime.length,
+                                size: totalAnimeSize.formatted,
+                                media: "anime",
                             })}
                             accessory={activeAnimeDownloads.length > 0 || failedAnimeDownloads.length > 0
                                 ? <QueueBadges activeCount={activeAnimeDownloads.length} failedCount={failedAnimeDownloads.length} />
@@ -287,12 +296,12 @@ export default function ProfileScreen() {
                         <ProfileMenuItem
                             icon="book-outline"
                             label="Manga Downloads"
-                            detail={formatDownloadMenuDetail({
-                                activeCount: activeMangaDownloads.length,
-                                failedCount: failedMangaDownloads.length,
-                                downloadedCount: downloadedManga.length,
-                                sizeLabel: totalMangaSize.formatted,
-                                mediaLabel: "manga",
+                            detail={downloadLabel({
+                                active: activeMangaDownloads.length,
+                                failed: failedMangaDownloads.length,
+                                downloaded: downloadedManga.length,
+                                size: totalMangaSize.formatted,
+                                media: "manga",
                             })}
                             accessory={activeMangaDownloads.length > 0 || failedMangaDownloads.length > 0
                                 ? <QueueBadges activeCount={activeMangaDownloads.length} failedCount={failedMangaDownloads.length} />
@@ -432,14 +441,6 @@ function ActiveStreamBadge({ status }: { status: ActiveStreamSession["status"] }
     )
 }
 
-////////////////////////// Menu helpers
-
-function getExternalPlayerLabel(template: string | null): string {
-    if (!template) return "Built-in player"
-    const match = getPlatformExternalPlayers().find(p => p.urlTemplate === template)
-    return match ? match.name : "Custom"
-}
-
 function QueueBadges({ activeCount, failedCount }: { activeCount: number; failedCount: number }) {
     if (activeCount <= 0 && failedCount <= 0) {
         return null
@@ -459,44 +460,4 @@ function QueueBadges({ activeCount, failedCount }: { activeCount: number; failed
             ) : null}
         </>
     )
-}
-
-function formatDownloadMenuDetail({
-    activeCount,
-    failedCount,
-    downloadedCount,
-    sizeLabel,
-    mediaLabel,
-}: {
-    activeCount: number
-    failedCount: number
-    downloadedCount: number
-    sizeLabel: string
-    mediaLabel: string
-}) {
-    const parts: string[] = []
-
-    if (activeCount > 0) {
-        parts.push(`${activeCount} in queue`)
-    }
-    if (failedCount > 0) {
-        parts.push(`${failedCount} failed`)
-    }
-
-    if (parts.length > 0) {
-        return parts.join(" · ")
-    }
-
-    if (downloadedCount > 0) {
-        return `${downloadedCount} ${mediaLabel} · ${sizeLabel}`
-    }
-
-    return "No downloads"
-}
-
-function formatActiveStreamDetail(activeStream: ActiveStreamSession): string {
-    const mode = activeStream.streamMode === "debrid" ? "Debrid streaming" : "Torrent streaming"
-    const subtitle = activeStream.subtitle ? ` (${activeStream.subtitle})` : ""
-
-    return `${mode}${subtitle}`
 }

@@ -2,9 +2,11 @@ export const BRAND_ACCENT = "#a39dd7"
 export const BRAND_ACCENT_TINT = "rgba(97,82,223,0.16)"
 export const BRAND_ACCENT_BORDER = "rgba(97,82,223,0.25)"
 export const QUIET_HUD_TEXT = "rgba(255,255,255,0.92)"
+export const BUFFER_FILL = "rgba(255,255,255,0.2)"
 
 // Timing
 export const CONTROLS_HIDE_DELAY = 4000
+export const TV_CONTROLS_HIDE_DELAY = 2500
 export const LOCKED_CONTROLS_HIDE_DELAY = 1200
 
 // Gestures

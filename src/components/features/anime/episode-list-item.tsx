@@ -7,7 +7,7 @@ import { useEpisodeDownloadStatus } from "@/lib/downloads"
 import { Ionicons } from "@/lib/icons/Ionicons"
 import { cn } from "@/lib/utils"
 import React from "react"
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native"
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from "react-native"
 
 type EpisodeListItemProps = {
     episode: Anime_Episode
@@ -118,6 +118,7 @@ function EpisodeListItemInner({
     thumbnailOverlay,
     blurAdultContent,
 }: EpisodeListItemProps) {
+    const [focused, setFocused] = React.useState(false)
     const serverStatus = useServerStatus()
     const downloadStatus = useEpisodeDownloadStatus(mediaId, episode)
     const spoiler = getEpisodeSpoilerState(serverStatus, {
@@ -136,6 +137,7 @@ function EpisodeListItemInner({
             : "No description")
     const finalFootnoteText = footnoteText !== undefined ? footnoteText : spoiler.hideTitle ? null : episode.localFile?.name
     const displayEpisodeTitle = spoiler.hideTitle ? `Episode ${episode.episodeNumber}` : episode.episodeTitle || episode.displayTitle
+    const effectiveRowPressable = !!rowPressable || Platform.isTV
 
     const thumbnail = (
         <>
@@ -190,7 +192,7 @@ function EpisodeListItemInner({
 
     const rowContent = (
         <>
-            {rowPressable ? (
+            {effectiveRowPressable ? (
                 <View
                     className={cn("relative mr-3 rounded-xl overflow-hidden bg-background flex-none")}
                     style={{ width: thumbnailWidth, height: (9 / 16) * thumbnailWidth }}
@@ -201,8 +203,14 @@ function EpisodeListItemInner({
                 <Pressable
                     onPress={onEpisodePress ? () => onEpisodePress(episode) : undefined}
                     onLongPress={onEpisodeLongPress ? () => onEpisodeLongPress(episode) : undefined}
-                    className={cn("relative mr-3 rounded-xl overflow-hidden bg-background flex-none")}
-                    style={{ width: thumbnailWidth, height: (9 / 16) * thumbnailWidth }}
+                    onFocus={() => setFocused(true)}
+                    onBlur={() => setFocused(false)}
+                    className={cn("relative mr-3 rounded-xl overflow-hidden bg-background flex-none border-2")}
+                    style={{
+                        width: thumbnailWidth,
+                        height: (9 / 16) * thumbnailWidth,
+                        borderColor: focused && Platform.isTV ? "#b8b0ff" : "transparent",
+                    }}
                 >
                     {thumbnail}
                 </Pressable>
@@ -264,20 +272,25 @@ function EpisodeListItemInner({
     const sharedProps = {
         className: cn(
             "bg-card/30 border-x border-border/50 flex-row items-stretch px-3 py-3",
-            rowPressable && "active:opacity-80",
+            effectiveRowPressable && "active:opacity-80",
+            Platform.isTV && "px-5 py-4",
+            Platform.isTV && focused && "bg-white/10",
         ),
         style: [
             isFirst ? styles.firstRow : styles.middleRow,
             isLast ? styles.lastRow : styles.notLastRow,
+            focused && Platform.isTV ? styles.focusedRow : null,
         ],
     }
 
-    if (rowPressable) {
+    if (effectiveRowPressable) {
         return (
             <Pressable
                 {...sharedProps}
                 onPress={onEpisodePress ? () => onEpisodePress(episode) : undefined}
                 onLongPress={onEpisodeLongPress ? () => onEpisodeLongPress(episode) : undefined}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
             >
                 {rowContent}
             </Pressable>
@@ -294,6 +307,10 @@ function EpisodeListItemInner({
 export const EpisodeListItem = React.memo(EpisodeListItemInner)
 
 const styles = StyleSheet.create({
+    focusedRow: {
+        borderColor: "#b8b0ff",
+        borderWidth: 2,
+    },
     firstRow: {
         borderTopWidth: StyleSheet.hairlineWidth,
         borderTopLeftRadius: 16,

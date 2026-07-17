@@ -70,12 +70,14 @@ final class MpvSurfaceExpoView: ExpoView, MPVLayerRendererDelegate, PiPControlle
         // Audio session
         configureAudioSession()
 
+#if !os(tvOS)
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(onPhoneLock),
             name: UIApplication.protectedDataWillBecomeUnavailableNotification,
             object: nil
         )
+#endif
     }
 
     override func layoutSubviews() {

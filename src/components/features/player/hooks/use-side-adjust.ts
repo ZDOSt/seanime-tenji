@@ -1,13 +1,41 @@
-import * as Brightness from "expo-brightness"
 import { MpvPlayerModule } from "expo-mpv-player"
 import * as NavigationBar from "expo-navigation-bar"
 import React from "react"
 import { Platform } from "react-native"
 import { useAnimatedStyle, useSharedValue } from "react-native-reanimated"
-import { VolumeManager } from "react-native-volume-manager"
 import { SIDE_ADJUST_FEEDBACK_HIDE_DELAY } from "../constants"
 import { clamp } from "../helpers"
 import type { SideAdjustKind } from "../types"
+
+type BrightnessApi = {
+    getBrightnessAsync: () => Promise<number>
+    isUsingSystemBrightnessAsync: () => Promise<boolean>
+    restoreSystemBrightnessAsync: () => Promise<void>
+    setBrightnessAsync: (value: number) => Promise<void>
+}
+
+type VolumeApi = {
+    addVolumeListener: (listener: (result: { volume: number }) => void) => { remove: () => void }
+    getVolume: () => Promise<{ volume: number }>
+    setVolume: (value: number, config: { showUI: boolean }) => Promise<void>
+}
+
+const Brightness: BrightnessApi = Platform.isTV
+    ? {
+        getBrightnessAsync: async () => 0.5,
+        isUsingSystemBrightnessAsync: async () => true,
+        restoreSystemBrightnessAsync: async () => undefined,
+        setBrightnessAsync: async () => undefined,
+    }
+    : require("expo-brightness") as BrightnessApi
+
+const VolumeManager: VolumeApi = Platform.isTV
+    ? {
+        addVolumeListener: () => ({ remove: () => undefined }),
+        getVolume: async () => ({ volume: 0.5 }),
+        setVolume: async () => undefined,
+    }
+    : (require("react-native-volume-manager") as { VolumeManager: VolumeApi }).VolumeManager
 
 const ANDROID_BRIGHTNESS_WRITE_INTERVAL_MS = 80
 
@@ -44,6 +72,8 @@ export function useSideAdjust(
     }))
 
     React.useEffect(() => {
+        if (Platform.isTV) return
+
         let mounted = true
 
         const sync = async () => {
@@ -147,6 +177,8 @@ export function useSideAdjust(
 
     // cleanup
     React.useEffect(() => {
+        if (Platform.isTV) return
+
         return () => {
             if (sideAdjustFrameRef.current !== null) cancelAnimationFrame(sideAdjustFrameRef.current)
             if (sideAdjustHideTimerRef.current) clearTimeout(sideAdjustHideTimerRef.current)
@@ -192,7 +224,7 @@ export function useSideAdjust(
         //     saveLevelRef.current(level)
         // }
 
-        if (Platform.OS === "android") {
+        if (Platform.OS === "android" && !Platform.isTV) {
             setTimeout(() => {
                 void NavigationBar.setVisibilityAsync("hidden").catch(() => undefined)
             }, 100)

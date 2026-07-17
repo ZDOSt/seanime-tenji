@@ -1,10 +1,110 @@
 import type { PlayerChapter } from "@/lib/player"
+import type { TechnicalInfo } from "expo-mpv-player"
 import { FastForward, Pause, Play, RotateCcw, RotateCw, Sun, Volume2 } from "lucide-react-native"
 import React from "react"
-import { Text, View, type ViewStyle } from "react-native"
+import { Platform, StyleSheet, Text, View, type ViewStyle } from "react-native"
 import Animated, { type AnimatedStyle, FadeIn, FadeOut, Keyframe, runOnJS, type SharedValue, useAnimatedReaction } from "react-native-reanimated"
 import { QUIET_HUD_TEXT } from "./constants"
 import { formatTime } from "./helpers"
+
+///////////////////////////////////////////////////////////////////////////////
+// Playback stats
+///////////////////////////////////////////////////////////////////////////////
+
+function fixed(value?: number, digits = 2) {
+    return value == null || !Number.isFinite(value) ? "—" : value.toFixed(digits)
+}
+
+function bitrate(value?: number) {
+    if (value == null || !Number.isFinite(value) || value <= 0) return "—"
+    return `${(value / 1_000_000).toFixed(2)} Mbps`
+}
+
+function decoder(value?: string) {
+    if (!value?.trim() || value === "no") return "software"
+    return value
+}
+
+export function PlayerStatsOverlay({
+    info,
+    top,
+    right,
+}: {
+    info: TechnicalInfo | null
+    top: number
+    right: number
+}) {
+    const size = Platform.isTV ? 16 : 11
+    const lineHeight = Platform.isTV ? 22 : 15
+
+    if (!info) {
+        return (
+            <View pointerEvents="none" style={[styles.stats, { top, right }]}>
+                <Text style={[styles.statsTitle, { fontSize: size, lineHeight }]}>PLAYBACK STATS</Text>
+                <Text style={[styles.statsText, { fontSize: size, lineHeight }]}>Reading player…</Text>
+            </View>
+        )
+    }
+
+    const resolution = info.videoWidth && info.videoHeight
+        ? `${info.videoWidth}×${info.videoHeight}`
+        : "—"
+    const dropped = `${info.droppedFrames ?? 0} render / ${info.decoderDroppedFrames ?? 0} decode`
+    const cache = `${fixed(info.cacheSeconds, 1)} / ${fixed(info.cacheLimit, 0)} s`
+    const cap = info.maxCacheMiB == null
+        ? "—"
+        : `${info.maxCacheMiB} MiB / ${info.backCacheMiB ?? 0} MiB back`
+
+    return (
+        <View pointerEvents="none" style={[styles.stats, { top, right }]}>
+            <Text style={[styles.statsTitle, { fontSize: size, lineHeight }]}>PLAYBACK STATS</Text>
+            <Text style={[styles.statsText, { fontSize: size, lineHeight }]}>Video      {info.videoCodec ?? "—"} · {resolution} · {fixed(info.fps)} fps</Text>
+            <Text style={[styles.statsText, { fontSize: size, lineHeight }]}>Decoder    {decoder(info.hwdec)}{info.hwPixelFormat ? ` · ${info.hwPixelFormat}` : ""}</Text>
+            {info.requestedHwdec ? (
+                <Text style={[styles.statsText, { fontSize: size, lineHeight }]}>Requested  {info.requestedHwdec} · option {info.hwdecOptionResult ?? "—"}</Text>
+            ) : null}
+            <Text style={[styles.statsText, { fontSize: size, lineHeight }]}>Output     {info.voDriver ?? "—"} · display {fixed(info.displayFps)} Hz</Text>
+            <Text style={[styles.statsText, { fontSize: size, lineHeight }]}>Audio      {info.audioCodec ?? "—"} · video {bitrate(info.videoBitrate)}</Text>
+            <Text style={[styles.statsText, { fontSize: size, lineHeight }]}>Dropped    {dropped}</Text>
+            <Text style={[styles.statsText, { fontSize: size, lineHeight }]}>Buffer     {info.isBuffering ? "yes" : "no"} · cache {cache}</Text>
+            <Text style={[styles.statsText, { fontSize: size, lineHeight }]}>Cache cap  {cap}</Text>
+            {info.decoderError ? (
+                <Text style={[styles.statsError, { fontSize: size, lineHeight }]}>Error      {info.decoderError}</Text>
+            ) : null}
+        </View>
+    )
+}
+
+const styles = StyleSheet.create({
+    stats: {
+        position: "absolute",
+        zIndex: 45,
+        minWidth: 270,
+        borderRadius: 8,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: "rgba(255,255,255,0.22)",
+        backgroundColor: "rgba(0,0,0,0.78)",
+        paddingHorizontal: 12,
+        paddingVertical: 9,
+    },
+    statsTitle: {
+        color: "rgba(255,255,255,0.7)",
+        fontFamily: Platform.select({ android: "monospace", ios: "Menlo" }),
+        fontWeight: "700",
+        marginBottom: 3,
+    },
+    statsText: {
+        color: "rgba(255,255,255,0.92)",
+        fontFamily: Platform.select({ android: "monospace", ios: "Menlo" }),
+        fontVariant: ["tabular-nums"],
+    },
+    statsError: {
+        color: "#fca5a5",
+        fontFamily: Platform.select({ android: "monospace", ios: "Menlo" }),
+        marginTop: 3,
+        maxWidth: 620,
+    },
+})
 
 ///////////////////////////////////////////////////////////////////////////////
 // Fast-forward badge (long-press)

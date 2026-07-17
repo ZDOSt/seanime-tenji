@@ -7,6 +7,7 @@ import { AnimeEntryLibraryView } from "@/components/features/media/anime-entry-l
 import { useAnimeEntryScreen } from "@/components/features/media/anime-entry-screen-context"
 import { AnimeEntryServerLocalView } from "@/components/features/media/anime-entry-server-local-view"
 import { AnimeEntryView, AnimeEntryViewSwitcher } from "@/components/features/media/anime-entry-view-switcher"
+import { defaultEntryView, tvEntryView } from "@/components/features/media/anime-entry-view-utils"
 import { MediaEntryHeaderBackground } from "@/components/features/media/media-entry-header"
 import { MediaEntryScrollShell } from "@/components/features/media/media-entry-scroll-shell"
 import { AnimeEntryOnlinestreamSection } from "@/components/features/onlinestream/anime-entry-onlinestream-section"
@@ -15,62 +16,36 @@ import { CenteredSpinner } from "@/components/shared/centered-spinner"
 import { OfflineBanner } from "@/components/shared/offline-banner"
 import { Styles } from "@/components/shared/styles"
 import { useDevScreenProfiler } from "@/hooks/use-dev-screen-profiler"
-import { getDefaultPlaybackSource, isPluginPlaybackSource } from "@/lib/default-playback-source"
 import { useCompletedEpisodesForMedia } from "@/lib/downloads"
 import { useIsServerConnected, useServerConnectionState, useServerLocalAnimeEntry, useServerLocalIdentity } from "@/lib/offline"
 import { usePlaybackCoordinator } from "@/lib/player"
-import { useIsFocused } from "@react-navigation/native"
+import { useIsFocused } from "expo-router"
 import { useAtom } from "jotai"
 import * as React from "react"
 import { useEffect, useMemo, useState } from "react"
-import { InteractionManager, RefreshControl, View } from "react-native"
+import { InteractionManager, Platform, RefreshControl, View } from "react-native"
 import Animated, { FadeIn, useSharedValue } from "react-native-reanimated"
+import { TVAnimeEntryScreen } from "@/components/tv/tv-anime-entry-screen"
 
 type AnimeEntryScreenProps = {
     initialView?: AnimeEntryView
 }
 
-const autoSwitchedToTorrentstream = new Set<string>()
-
-function getAutomaticAnimeEntryView(
-    serverStatus: ReturnType<typeof useServerStatus>,
-    hasLibraryData: boolean,
-): AnimeEntryView {
-    if (hasLibraryData) return "library"
-    if (serverStatus?.debridSettings?.enabled && serverStatus.debridSettings.provider) return "torrentstream"
-    if (serverStatus?.torrentstreamSettings?.enabled) return "torrentstream"
-    if (serverStatus?.settings?.library?.enableOnlinestream) return "onlinestream"
-    return "library"
-}
-
-function getDefaultAnimeEntryView(
-    serverStatus: ReturnType<typeof useServerStatus>,
-    hasLibraryData: boolean,
-): AnimeEntryView {
-    const defaultSource = getDefaultPlaybackSource(serverStatus)
-
-    if (!isPluginPlaybackSource(defaultSource)) {
-        if (defaultSource === "library") return "library"
-        if (defaultSource === "debridstream" && serverStatus?.debridSettings?.enabled && serverStatus.debridSettings.provider) return "torrentstream"
-        if (defaultSource === "torrentstream" && serverStatus?.torrentstreamSettings?.enabled) return "torrentstream"
-        if (defaultSource === "onlinestream" && serverStatus?.settings?.library?.enableOnlinestream) return "onlinestream"
-    }
-
-    return getAutomaticAnimeEntryView(serverStatus, hasLibraryData)
-}
-
-export function AnimeEntryScreen({ initialView = "library" }: AnimeEntryScreenProps) {
+export function AnimeEntryScreen({ initialView }: AnimeEntryScreenProps) {
     const { id, entry, isFetching, refetch } = useAnimeEntryScreen()
+    const serverStatus = useServerStatus()
+    const hasInitialView = initialView !== undefined
+    const requestedView = initialView ?? defaultEntryView(serverStatus, !!entry.libraryData)
+    const startView = Platform.isTV ? tvEntryView(requestedView) : requestedView
     const [playbackIntent, setPlaybackIntent] = useAtom(animeEntryPlaybackIntentAtom)
     const isFocused = useIsFocused()
-    const serverStatus = useServerStatus()
     const connectionState = useServerConnectionState()
     const isConnected = useIsServerConnected()
     const isOffline = connectionState === "disconnected"
     const serverLocalIdentity = useServerLocalIdentity()
-    const [currentView, setCurrentView] = useState<AnimeEntryView>(initialView)
+    const [currentView, setCurrentView] = useState<AnimeEntryView>(startView)
     const [isPrimaryBodyReady, setIsPrimaryBodyReady] = useState(false)
-    const defaultViewAppliedForIdRef = React.useRef<string | null>(null)
+    const viewKeyRef = React.useRef<string | null>(null)
     const libraryScrollY = useSharedValue(0)
     const torrentstreamScrollY = useSharedValue(0)
     const onlinestreamScrollY = useSharedValue(0)
@@ -78,12 +53,12 @@ export function AnimeEntryScreen({ initialView = "library" }: AnimeEntryScreenPr
     const downloadedScrollY = useSharedValue(0)
     const serverLocalScrollY = useSharedValue(0)
     const [mountedViews, setMountedViews] = React.useState<Record<AnimeEntryView, boolean>>({
-        library: initialView === "library",
-        torrentstream: initialView === "torrentstream",
-        onlinestream: initialView === "onlinestream",
-        info: initialView === "info",
-        downloaded: initialView === "downloaded",
-        "server-local": initialView === "server-local",
+        library: startView === "library",
+        torrentstream: startView === "torrentstream",
+        onlinestream: startView === "onlinestream",
+        info: startView === "info",
+        downloaded: startView === "downloaded",
+        "server-local": startView === "server-local",
     })
     const activeScrollY = useMemo(() => {
         switch (currentView) {
@@ -128,17 +103,9 @@ export function AnimeEntryScreen({ initialView = "library" }: AnimeEntryScreenPr
         }
     }, [entry?.episodes, entry?.listData?.progress])
 
-    const hasLibraryEpisodes = mainEpisodes.length > 0 || specialEpisodes.length > 0 || ncEpisodes.length > 0
-    const hasTorrentLibraryStream = !!serverStatus?.torrentstreamSettings?.enabled && !!serverStatus?.torrentstreamSettings?.includeInLibrary
-    const hasDebridLibraryStream = !!serverStatus?.debridSettings?.enabled
-        && !!serverStatus?.debridSettings?.provider
-        && !!serverStatus?.debridSettings?.includeDebridStreamInLibrary
     const hasLibraryData = !!entry.libraryData
     const serverLocalEntry = useServerLocalAnimeEntry(entry.mediaId)
     const completedDownloads = useCompletedEpisodesForMedia(entry.mediaId)
-    const hasExplicitInitialView = initialView !== "library"
-    const defaultPlaybackSource = getDefaultPlaybackSource(serverStatus)
-    const shouldUseAutomaticEntrySwitching = !defaultPlaybackSource || isPluginPlaybackSource(defaultPlaybackSource)
 
     const { playLocalFileEpisode, playServerLocalFileEpisode } = usePlaybackCoordinator(entry)
     const serverLocalEpisodeGroups = useMemo(() => {
@@ -209,61 +176,61 @@ export function AnimeEntryScreen({ initialView = "library" }: AnimeEntryScreenPr
     }, [currentView, entry.episodes, entry.mediaId, playLocalFileEpisode, playbackIntent, setPlaybackIntent])
 
     useEffect(() => {
-        if (hasExplicitInitialView) return
-        if (!isConnected) return
-        if (!serverStatus?.settings) return
-        if (defaultViewAppliedForIdRef.current === id) return
-
-        defaultViewAppliedForIdRef.current = id
+        const key = `${id}:${initialView ?? "automatic"}`
+        if (viewKeyRef.current === key) return
 
         if (entry.media?.status === "NOT_YET_RELEASED") {
+            viewKeyRef.current = key
             setCurrentView("library")
             return
         }
 
-        const nextView = getDefaultAnimeEntryView(serverStatus, hasLibraryData)
-        setCurrentView(current => current === nextView ? current : nextView)
-    }, [entry.media?.status, hasExplicitInitialView, hasLibraryData, id, isConnected, serverStatus])
-
-    // When offline, prefer files owned by Tenji, then the cached mobile-server catalog.
-    useEffect(() => {
-        if (isOffline && (currentView === "library" || currentView === "torrentstream" || currentView === "onlinestream")) {
-            setCurrentView(completedDownloads.length > 0 ? "downloaded" : serverLocalEntry ? "server-local" : "downloaded")
+        if (hasInitialView) {
+            viewKeyRef.current = key
+            setCurrentView(startView)
+            return
         }
+
+        if (!isConnected) return
+        if (!serverStatus?.settings) return
+
+        viewKeyRef.current = key
+        const nextView = defaultEntryView(serverStatus, hasLibraryData)
+        setCurrentView(current => current === nextView ? current : nextView)
+    }, [
+        entry.media?.status,
+        hasInitialView,
+        hasLibraryData,
+        id,
+        initialView,
+        isConnected,
+        serverStatus,
+        startView,
+    ])
+
+    // Mobile prefers device downloads offline. TV can only use the server-local catalog.
+    useEffect(() => {
+        if (!isOffline) return
+        if (currentView !== "library" && currentView !== "torrentstream" && currentView !== "onlinestream") return
+
+        if (Platform.isTV) {
+            setCurrentView(serverLocalEntry ? "server-local" : "library")
+            return
+        }
+
+        setCurrentView(completedDownloads.length > 0 ? "downloaded" : serverLocalEntry ? "server-local" : "downloaded")
     }, [completedDownloads.length, currentView, isOffline, serverLocalEntry])
 
     useEffect(() => {
         if (currentView !== "server-local" || serverLocalIdentity) return
+
+        if (Platform.isTV) {
+            setCurrentView("library")
+            return
+        }
+
         setCurrentView(completedDownloads.length > 0 ? "downloaded" : isConnected ? "library" : "downloaded")
     }, [completedDownloads.length, currentView, isConnected, serverLocalIdentity])
-
-    useEffect(() => {
-        if (!shouldUseAutomaticEntrySwitching) return
-        if (!isConnected) return
-        if (currentView !== "library") return
-        if (!hasTorrentLibraryStream && !hasDebridLibraryStream) return
-        if (hasLibraryEpisodes) return
-        if (autoSwitchedToTorrentstream.has(id)) return
-
-        autoSwitchedToTorrentstream.add(id)
-        setCurrentView("torrentstream")
-    }, [currentView, hasDebridLibraryStream, hasLibraryEpisodes, hasTorrentLibraryStream, id, isConnected, shouldUseAutomaticEntrySwitching])
-
-    useEffect(() => {
-        if (!shouldUseAutomaticEntrySwitching) return
-        if (!isConnected) return
-        if (currentView !== "library") return
-        if (hasTorrentLibraryStream || hasDebridLibraryStream) return
-        if (!serverStatus?.settings?.library?.includeOnlineStreamingInLibrary) return
-        if (!serverStatus?.settings?.library?.enableOnlinestream) return
-        if (hasLibraryEpisodes) return
-        if (autoSwitchedToTorrentstream.has(id)) return // reuse the same guard set
-
-        autoSwitchedToTorrentstream.add(id)
-        setCurrentView("onlinestream")
-    }, [currentView, hasDebridLibraryStream, hasLibraryEpisodes, hasTorrentLibraryStream, id, isConnected,
-        serverStatus?.settings?.library?.includeOnlineStreamingInLibrary, serverStatus?.settings?.library?.enableOnlinestream,
-        shouldUseAutomaticEntrySwitching])
 
     // hide tabs
     const hiddenViews = useMemo(() => {
@@ -290,6 +257,16 @@ export function AnimeEntryScreen({ initialView = "library" }: AnimeEntryScreenPr
             <View style={[Styles.Container, { justifyContent: "center", alignItems: "center" }]}>
                 <CenteredSpinner />
             </View>
+        )
+    }
+
+    if (Platform.isTV) {
+        return (
+            <TVAnimeEntryScreen
+                initialView={startView}
+                currentView={currentView}
+                onViewChange={setCurrentView}
+            />
         )
     }
 

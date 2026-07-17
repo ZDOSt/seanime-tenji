@@ -1,4 +1,4 @@
-import { AL_FuzzyDateInput, AL_MediaListStatus, Anime_Entry, Manga_Entry } from "@/api/generated/types"
+import { AL_MediaListStatus, Anime_Entry, Manga_Entry } from "@/api/generated/types"
 import { useDeleteAnilistListEntry, useEditAnilistListEntry } from "@/api/hooks/anilist.hooks"
 import { SheetFooter, SheetFooterButton } from "@/components/shared/sheet-footer"
 import { SeaBottomSheet } from "@/components/ui/bottom-sheet"
@@ -17,6 +17,12 @@ import * as Haptics from "expo-haptics"
 import React from "react"
 import { Alert, Platform, Pressable, View } from "react-native"
 import { NativeViewGestureHandler } from "react-native-gesture-handler"
+import {
+    listForm,
+    listPayload,
+    maxListProgress,
+    type ListForm,
+} from "./edit-list-entry-utils"
 
 type EditAnilistEntryProps = {
     entry?: Anime_Entry | Manga_Entry
@@ -25,56 +31,13 @@ type EditAnilistEntryProps = {
     buttonClassName?: string
 }
 
-type FormState = {
-    status: AL_MediaListStatus
-    score: string
-    progress: string
-    startedAt: Date | null
-    completedAt: Date | null
-}
-
-const DEFAULT_STATUS: AL_MediaListStatus = "PLANNING"
-
-function parseEntryDate(value?: string) {
-    if (!value) return null
-
-    const parsedDate = new Date(value)
-    return Number.isNaN(parsedDate.getTime()) ? null : parsedDate
-}
-
-function toFuzzyDate(value: Date | null): AL_FuzzyDateInput | undefined {
-    if (!value) return undefined
-
-    return {
-        day: value.getDate(),
-        month: value.getMonth() + 1,
-        year: value.getFullYear(),
-    }
-}
-
-function clampNumber(value: number, min: number, max: number) {
-    return Math.min(Math.max(value, min), max)
-}
-
-function createInitialState(entry?: Anime_Entry | Manga_Entry, isNotYetReleased: boolean = false): FormState {
-    return {
-        status: isNotYetReleased ? DEFAULT_STATUS : (entry?.listData?.status ?? DEFAULT_STATUS),
-        score: entry?.listData?.score ? String(entry.listData.score / 10) : "",
-        progress: entry?.listData?.progress ? String(entry.listData.progress) : "",
-        startedAt: parseEntryDate(entry?.listData?.startedAt),
-        completedAt: parseEntryDate(entry?.listData?.completedAt),
-    }
-}
-
 export function EditAnilistEntry(props: EditAnilistEntryProps) {
     const { entry, type, buttonSize = "sm", buttonClassName } = props
 
     const [open, setOpen] = React.useState(false)
     const lastScoreSliderStepRef = React.useRef<number | null>(null)
     const isNotYetReleased = entry?.media?.status === "NOT_YET_RELEASED"
-    const animeMedia = type === "anime" ? entry?.media as Anime_Entry["media"] : undefined
-    const mangaMedia = type === "manga" ? entry?.media as Manga_Entry["media"] : undefined
-    const [formState, setFormState] = React.useState<FormState>(() => createInitialState(entry, isNotYetReleased))
+    const [formState, setFormState] = React.useState<ListForm>(() => listForm(entry, isNotYetReleased))
 
     const isInList = Boolean(entry?.listData)
 
@@ -110,20 +73,12 @@ export function EditAnilistEntry(props: EditAnilistEntryProps) {
         return options.filter((o): o is ChipOption<AL_MediaListStatus> => Boolean(o))
     }, [isNotYetReleased, type])
 
-    const maxProgress = React.useMemo(() => {
-        if (type === "anime") {
-            return animeMedia?.nextAiringEpisode?.episode
-                ? animeMedia.nextAiringEpisode.episode - 1
-                : animeMedia?.episodes
-        }
-
-        return mangaMedia?.chapters
-    }, [animeMedia, mangaMedia, type])
+    const maxProgress = React.useMemo(() => maxListProgress(entry, type), [entry, type])
 
     React.useEffect(() => {
         if (!open) return
 
-        setFormState(createInitialState(entry, isNotYetReleased))
+        setFormState(listForm(entry, isNotYetReleased))
     }, [entry, isNotYetReleased, open])
 
     const triggerScoreSliderHaptic = React.useCallback(() => {
@@ -134,7 +89,7 @@ export function EditAnilistEntry(props: EditAnilistEntryProps) {
         setOpen(true)
     }
 
-    const handleChange = React.useCallback(<K extends keyof FormState>(key: K, value: FormState[K]) => {
+    const handleChange = React.useCallback(<K extends keyof ListForm>(key: K, value: ListForm[K]) => {
         setFormState(previousState => ({
             ...previousState,
             [key]: value,
@@ -160,24 +115,7 @@ export function EditAnilistEntry(props: EditAnilistEntryProps) {
 
     const handleSave = React.useCallback(() => {
             if (!entry?.mediaId) return
-            const parsedScore = Number.parseFloat(formState.score)
-            const parsedProgress = Number.parseInt(formState.progress, 10)
-
-            const normalizedScore = Number.isNaN(parsedScore)
-                ? 0
-                : clampNumber(Math.round(parsedScore * 10), 0, 100)
-            const normalizedProgress = Number.isNaN(parsedProgress)
-                ? 0
-                : clampNumber(parsedProgress, 0, maxProgress ?? Number.MAX_SAFE_INTEGER)
-            const payload = {
-                mediaId: entry.mediaId,
-                type: type,
-                status: formState.status,
-                score: normalizedScore,
-                progress: normalizedProgress,
-                startedAt: toFuzzyDate(formState.startedAt),
-                completedAt: toFuzzyDate(formState.completedAt),
-            }
+            const payload = listPayload(entry, type, formState, maxProgress)
 
             saveEntry(payload, {
                 onSuccess: () => {
@@ -398,8 +336,8 @@ const ScoreStepper = React.memo(function ScoreStepper({ value, onChange }: Score
         valueRef.current = value
     }, [value])
 
-    const intervalRef = React.useRef<NodeJS.Timeout | null>(null)
-    const timeoutRef = React.useRef<NodeJS.Timeout | null>(null)
+    const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
+    const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
     const updateScore = React.useCallback((direction: "increment" | "decrement") => {
         const current = Number.parseFloat(valueRef.current) || 0

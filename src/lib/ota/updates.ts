@@ -4,7 +4,7 @@ import { toast } from "@/lib/utils/toast"
 import Constants from "expo-constants"
 import * as Updates from "expo-updates"
 import * as React from "react"
-import { Alert } from "react-native"
+import { Alert, Platform } from "react-native"
 
 type SeanimeUpdateExtra = {
     otaVersion?: string
@@ -21,8 +21,38 @@ type OtaVersionInfo = {
     detail: string
 }
 
+export type OtaPromptInfo = {
+    updateId?: string
+    otaVersion?: string
+}
+
+type OtaPromptListener = (info: OtaPromptInfo) => void
+
 const CHECK_DELAY_MS = 1200
 const DISMISSED_OTA_ID_KEY = "sea-ota-dismissed-id"
+const promptListeners = new Set<OtaPromptListener>()
+
+export function onOtaPrompt(listener: OtaPromptListener) {
+    promptListeners.add(listener)
+    return () => {
+        promptListeners.delete(listener)
+    }
+}
+
+export function dismissOta(info: OtaPromptInfo) {
+    if (info.updateId) {
+        setStoredString(DISMISSED_OTA_ID_KEY, info.updateId)
+    }
+}
+
+export async function downloadOta(): Promise<boolean> {
+    const result = await Updates.fetchUpdateAsync()
+    return result.isNew || result.isRollBackToEmbedded
+}
+
+export async function restartOta(): Promise<void> {
+    await Updates.reloadAsync()
+}
 
 export function OtaUpdatePrompt() {
     const promptShownRef = React.useRef(false)
@@ -134,6 +164,12 @@ function promptInstallUpdate(manifest: unknown) {
     const extra = getSeanimeUpdateExtra(manifest)
     const versionLabel = extra.otaVersion ? `OTA ${extra.otaVersion}` : "A new update"
     const updateId = isRecord(manifest) && typeof manifest.id === "string" ? manifest.id : undefined
+    const info = { updateId, otaVersion: extra.otaVersion }
+
+    if (Platform.isTV) {
+        promptListeners.forEach(listener => listener(info))
+        return
+    }
 
     Alert.alert(
         "Update available",
@@ -143,9 +179,7 @@ function promptInstallUpdate(manifest: unknown) {
                 text: "Later",
                 style: "cancel",
                 onPress: () => {
-                    if (updateId) {
-                        setStoredString(DISMISSED_OTA_ID_KEY, updateId)
-                    }
+                    dismissOta(info)
                 },
             },
             {
@@ -160,8 +194,8 @@ function promptInstallUpdate(manifest: unknown) {
 
 async function fetchAndPromptReload(updateId: string | undefined, otaVersion: string | undefined) {
     try {
-        const result = await Updates.fetchUpdateAsync()
-        if (!result.isNew && !result.isRollBackToEmbedded) {
+        const ready = await downloadOta()
+        if (!ready) {
             toast.info("Seanime is already up to date")
             return
         }
@@ -175,7 +209,7 @@ async function fetchAndPromptReload(updateId: string | undefined, otaVersion: st
                 {
                     text: "Restart",
                     onPress: () => {
-                        void Updates.reloadAsync()
+                        void restartOta()
                     },
                 },
             ],

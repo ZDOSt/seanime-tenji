@@ -6,6 +6,7 @@ node_modules/
 
 # Expo
 .expo/
+.seanime/
 dist/
 web-build/
 

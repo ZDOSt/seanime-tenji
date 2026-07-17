@@ -1,5 +1,6 @@
+import { cn } from "@/lib/utils"
 import * as React from "react"
-import { LayoutChangeEvent, Pressable, Text, View } from "react-native"
+import { LayoutChangeEvent, Platform, Pressable, Text, View } from "react-native"
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated"
 
 export type SegmentedControlOption<T extends string = string> = {
@@ -62,19 +63,36 @@ export function SegmentedControl<T extends string = string>({ options, value, on
             {options.map((option, index) => {
                 const active = index === activeIndex
                 return (
-                    <Pressable
+                    <SegmentOption
                         key={option.value}
+                        label={option.label}
+                        active={active}
                         onPress={() => onChange(option.value)}
-                        className="flex-1 items-center justify-center h-full rounded-full z-10"
-                    >
-                        <Text
-                            className={active ? "text-white font-semibold text-sm" : "text-white/40 font-medium text-sm"}
-                        >
-                            {option.label}
-                        </Text>
-                    </Pressable>
+                    />
                 )
             })}
         </View>
+    )
+}
+
+function SegmentOption({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+    const [focused, setFocused] = React.useState(false)
+
+    return (
+        <Pressable
+            onPress={onPress}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            className={cn(
+                "z-10 h-full flex-1 items-center justify-center rounded-full border-2 border-transparent",
+                Platform.isTV && focused && "border-brand-100 bg-white/10",
+            )}
+        >
+            <Text
+                className={active || focused ? "text-white font-semibold text-sm" : "text-white/40 font-medium text-sm"}
+            >
+                {label}
+            </Text>
+        </Pressable>
     )
 }

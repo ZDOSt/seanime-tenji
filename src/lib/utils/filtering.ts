@@ -110,6 +110,18 @@ export const DEFAULT_COLLECTION_PARAMS: CollectionParams = {
     isAdult: false,
 }
 
+export function countActiveCollectionFilters(params: CollectionParams, type: "anime" | "manga"): number {
+    let count = 0
+    if (params.sorting !== "SCORE_DESC") count++
+    if (params.genre && params.genre.length > 0) count++
+    if (params.tags && params.tags.length > 0) count++
+    if (params.status !== null) count++
+    if (params.format !== null) count++
+    if (params.season !== null && type === "anime") count++
+    if (params.year !== null) count++
+    return count
+}
+
 
 function getParamValue<T extends any>(value: T | ""): any {
     if (value === "") return undefined

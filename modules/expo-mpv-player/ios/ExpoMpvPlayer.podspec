@@ -5,7 +5,7 @@ Pod::Spec.new do |s|
   s.description    = 'Expo module wrapping libmpv via MPVKit for Android and iOS video playback'
   s.author         = 'seanime'
   s.homepage       = 'https://github.com/5rahim/seanime'
-  s.platforms      = { :ios => '15.1' }
+  s.platforms      = { :ios => '15.1', :tvos => '15.1' }
   s.source         = { git: '' }
   s.static_framework = true
 

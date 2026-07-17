@@ -14,14 +14,22 @@ import {
 import { type DownloadedMangaInfo } from "@/lib/downloads/manga-download-store"
 import { Ionicons } from "@expo/vector-icons"
 import { Image } from "expo-image"
-import { router } from "expo-router"
+import { Redirect, router } from "expo-router"
 import React from "react"
-import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native"
+import { Alert, Platform, ScrollView, Text, TouchableOpacity, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 const DOWNLOADED_MANGA_PAGE_SIZE = 24
 
 export default function MangaDownloadsScreen() {
+    if (Platform.isTV) {
+        return <Redirect href="/(app)/(tabs)/(library)" />
+    }
+
+    return <MobileMangaDownloadsScreen />
+}
+
+function MobileMangaDownloadsScreen() {
     const insets = useSafeAreaInsets()
     const downloadedManga = useAllDownloadedManga()
     const activeDownloads = useActiveMangaDownloads()

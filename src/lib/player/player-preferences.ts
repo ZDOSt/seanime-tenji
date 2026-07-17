@@ -56,6 +56,8 @@ export type PlayerPreferences = {
     externalPlayerTemplate: string | null
     /** mpv video output. gpu-next is the default. */
     androidVideoOutput: MpvVideoOutput
+    /** Whether to show live playback diagnostics over the video. */
+    showStats: boolean
 }
 
 const DEFAULTS: PlayerPreferences = {
@@ -80,6 +82,7 @@ const DEFAULTS: PlayerPreferences = {
     wyzieApiKey: "",
     externalPlayerTemplate: null,
     androidVideoOutput: "gpu-next",
+    showStats: false,
 }
 
 const STORAGE_KEY = "player-prefs"

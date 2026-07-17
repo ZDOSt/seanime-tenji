@@ -7,12 +7,13 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { TVServerSetup } from "@/components/tv/tv-server-setup"
 import { IMAGES } from "@/constants/images"
 import { logger } from "@/lib/utils/logger"
 import { toast } from "@/lib/utils/toast"
 import { router } from "expo-router"
 import * as React from "react"
-import { Image, KeyboardAvoidingView, Text, View } from "react-native"
+import { Image, KeyboardAvoidingView, Platform, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 export default function Screen() {
@@ -20,8 +21,9 @@ export default function Screen() {
     const setServerStatus = useSetServerStatus()
     const setServerAuthToken = useSetServerAuthToken()
 
-    const [inputValue, setInputValue] = React.useState(currentServerUrl ?? "")
+    const [inputValue, setInputValue] = React.useState(currentServerUrl ?? "http://192.168.129.14:43000")
     const [passwordValue, setPasswordValue] = React.useState("")
+    const [passwordRequired, setPasswordRequired] = React.useState(false)
     const [isSubmitting, setIsSubmitting] = React.useState(false)
     const setServerUrl = useSetServerUrl()
 
@@ -90,7 +92,13 @@ export default function Screen() {
                         : "Unable to connect to the server")
 
                 if (message === "UNAUTHENTICATED") {
-                    showErrorToast(trimmedPassword ? "Server password is incorrect" : "This server requires a password")
+                    if (trimmedPassword) {
+                        showErrorToast("Server password is incorrect")
+                    } else if (Platform.isTV) {
+                        setPasswordRequired(true)
+                    } else {
+                        showErrorToast("This server requires a password")
+                    }
                 } else if (message.includes("Network request failed") || message.includes("Failed to fetch")) {
                     showErrorToast("Could not reach the server")
                 } else {
@@ -102,6 +110,24 @@ export default function Screen() {
             }
         })()
     }, [inputValue, passwordValue, setServerAuthToken, setServerStatus, setServerUrl, showErrorToast])
+
+    if (Platform.isTV) {
+        return (
+            <TVServerSetup
+                serverUrl={inputValue}
+                password={passwordValue}
+                passwordRequired={passwordRequired}
+                submitting={isSubmitting}
+                onServerUrlChange={setInputValue}
+                onPasswordChange={setPasswordValue}
+                onBackToServer={() => {
+                    setPasswordRequired(false)
+                    setPasswordValue("")
+                }}
+                onContinue={handleOnContinue}
+            />
+        )
+    }
 
     return (
         <KeyboardAvoidingView className="flex-1 justify-center bg-background px-4">

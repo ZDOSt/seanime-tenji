@@ -4,7 +4,7 @@ import { useDownloadQueueResumeService } from "@/lib/downloads/download-queue-re
 import { useDownloadSnapshotRefreshService, useOfflineSyncService, useServerLocalSyncService } from "@/lib/offline"
 import { usePlayerEventListener } from "@/lib/player"
 import { Stack } from "expo-router"
-import { View } from "react-native"
+import { Platform, View } from "react-native"
 
 function BackgroundServices() {
     useOfflineSyncService()
@@ -30,7 +30,7 @@ export default function AppLayout() {
 
     return (
         <ServerDataWrapper>
-            <BackgroundServices />
+            {!Platform.isTV && <BackgroundServices />}
             <PlayerEventMount />
             <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="(tabs)" options={{ headerShown: false, freezeOnBlur: true }} />

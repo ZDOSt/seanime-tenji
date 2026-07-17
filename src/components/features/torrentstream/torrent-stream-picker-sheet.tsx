@@ -24,6 +24,7 @@ import * as React from "react"
 import { ActivityIndicator, Pressable, Text, View } from "react-native"
 import { NONE_PROVIDER, TORRENT_RESOLUTIONS, TorrentResolution, TorrentSearchMode, TorrentSheetStage } from "./use-torrent-stream-controller"
 import type { StreamMode } from "./use-torrent-stream-controller"
+import { getFileSelectionValue } from "./torrent-stream-picker-utils"
 
 
 type TorrentStreamPickerSheetProps = {
@@ -151,7 +152,7 @@ export function TorrentStreamPickerSheet(props: TorrentStreamPickerSheetProps) {
 
     const primaryLabel = React.useMemo(() => {
         if (pickerStage === "files") return "Stream selected file"
-        if (!selectedTorrent) return streamMode === "debrid" ? "Auto select via debrid" : "Auto select now"
+        if (!selectedTorrent) return "Auto select now"
         if (selectedTorrent.isBatch) return "Choose file"
         return "Start selected"
     }, [pickerStage, selectedTorrent, streamMode])
@@ -525,6 +526,7 @@ function TorrentSelectionStage(props: TorrentSelectionStageProps) {
                 <Pressable
                     key={`${torrent.infoHash ?? torrent.downloadUrl}-${index}`}
                     onPress={() => onSelectTorrent(isSelected ? null : torrent)}
+                    className="rounded-2xl border-2 border-transparent focus:border-brand-100"
                 >
                     <TorrentCard
                         torrent={torrent}
@@ -629,7 +631,7 @@ function TorrentSelectionStage(props: TorrentSelectionStageProps) {
                 <View className="gap-3">
                     <Pressable
                         onPress={() => setIsFiltersExpanded(!isFiltersExpanded)}
-                        className="flex-row items-center justify-between py-1.5 px-0.5 border-b border-white/5 active:opacity-60"
+                        className="flex-row items-center justify-between rounded-lg border-2 border-transparent border-b-white/5 py-2 px-2 active:opacity-60 focus:border-brand-100 focus:bg-white/10"
                     >
                         <Text className="text-xs font-semibold text-white/40 uppercase tracking-wider">
                             Search Settings
@@ -663,7 +665,7 @@ function TorrentSelectionStage(props: TorrentSelectionStageProps) {
                                     {searchAcrossProviders && (
                                         <Pressable
                                             onPress={() => onSelectStage("providers")}
-                                            className="flex-row items-center justify-between h-11 px-3.5 rounded-xl border border-white/10 bg-white/[0.04] active:bg-white/5 mt-0.5"
+                                            className="mt-0.5 h-11 flex-row items-center justify-between rounded-xl border-2 border-white/10 bg-white/[0.04] px-3.5 active:bg-white/5 focus:border-brand-100"
                                         >
                                             <Text className="text-sm font-medium text-white">
                                                 {extraProviderIds.filter(id => id !== selectedProviderId).length === 0
@@ -746,6 +748,7 @@ function TorrentSelectionStage(props: TorrentSelectionStageProps) {
                         onPress={() => onSelectTorrent(selectedTorrent?.infoHash === batchHistory.torrent?.infoHash
                             ? null
                             : batchHistory.torrent ?? null)}
+                        className="rounded-2xl border-2 border-transparent focus:border-brand-100"
                     >
                         <TorrentCard
                             torrent={batchHistory.torrent!}
@@ -761,7 +764,10 @@ function TorrentSelectionStage(props: TorrentSelectionStageProps) {
             <View className="gap-2">
                 <View className="flex-row justify-between items-center">
                     <FormSectionLabel>Releases</FormSectionLabel>
-                    <Pressable onPress={onRefetchSearch}>
+                    <Pressable
+                        onPress={onRefetchSearch}
+                        className="rounded-lg border-2 border-transparent px-3 py-2 focus:border-brand-100 focus:bg-white/10"
+                    >
                         <Text className="text-xs font-semibold text-white/35">
                             Refresh
                         </Text>
@@ -888,7 +894,10 @@ function TorrentFileSelectionStage({ filePreviews, isLoading, onBack, selectedFi
         <View className="gap-2.5">
             <View className="flex-row justify-between items-center">
                 <FormSectionLabel>File Selection</FormSectionLabel>
-                <Pressable onPress={onBack}>
+                <Pressable
+                    onPress={onBack}
+                    className="rounded-lg border-2 border-transparent px-3 py-2 focus:border-brand-100 focus:bg-white/10"
+                >
                     <Text className="text-xs font-semibold text-white/40">
                         Back to releases
                     </Text>
@@ -904,7 +913,7 @@ function TorrentFileSelectionStage({ filePreviews, isLoading, onBack, selectedFi
                             key={fileId}
                             onPress={() => onSelectFileId(fileId)}
                             className={cn(
-                                "rounded-2xl p-3.5 border gap-2",
+                                "rounded-2xl p-3.5 border-2 gap-2 focus:border-brand-100",
                                 selected
                                     ? "bg-indigo-500/15 border-indigo-400/30"
                                     : "bg-white/5 border-white/10",
@@ -970,7 +979,10 @@ function TorrentProviderSelectionStage({
         <View className="gap-3">
             <View className="flex-row justify-between items-center">
                 <FormSectionLabel>Additional Providers</FormSectionLabel>
-                <Pressable onPress={onBack}>
+                <Pressable
+                    onPress={onBack}
+                    className="rounded-lg border-2 border-transparent px-3 py-2 focus:border-brand-100 focus:bg-white/10"
+                >
                     <Text className="text-xs font-semibold text-white/40">
                         Back to releases
                     </Text>
@@ -992,13 +1004,13 @@ function TorrentProviderSelectionStage({
             <View className="flex-row gap-2">
                 <Pressable
                     onPress={handleSelectAll}
-                    className="flex-1 h-9 items-center justify-center rounded-xl bg-white/5 border border-white/10 active:bg-white/10"
+                    className="h-10 flex-1 items-center justify-center rounded-xl border-2 border-white/10 bg-white/5 active:bg-white/10 focus:border-brand-100"
                 >
                     <Text className="text-xs font-semibold text-white/70">Select All</Text>
                 </Pressable>
                 <Pressable
                     onPress={handleClearAll}
-                    className="flex-1 h-9 items-center justify-center rounded-xl bg-white/5 border border-white/10 active:bg-white/10"
+                    className="h-10 flex-1 items-center justify-center rounded-xl border-2 border-white/10 bg-white/5 active:bg-white/10 focus:border-brand-100"
                 >
                     <Text className="text-xs font-semibold text-white/70">Clear All</Text>
                 </Pressable>
@@ -1023,7 +1035,7 @@ function TorrentProviderSelectionStage({
                                     }
                                 }}
                                 className={cn(
-                                    "rounded-2xl p-3.5 border flex-row justify-between items-center",
+                                    "rounded-2xl p-3.5 border-2 flex-row justify-between items-center focus:border-brand-100",
                                     isActive
                                         ? "bg-indigo-500/15 border-indigo-400/30"
                                         : "bg-white/5 border-white/10",
@@ -1056,7 +1068,7 @@ function ChoiceChip({ label, active, onPress }: { label: string; active: boolean
         <Pressable
             onPress={onPress}
             className={cn(
-                "px-3.5 py-2 rounded-full border",
+                "px-3.5 py-2 rounded-full border-2 focus:border-brand-100 focus:bg-white/15",
                 active ? "bg-indigo-500/60 border-indigo-500/80" : "bg-white/5 border-white/10",
             )}
         >
@@ -1091,10 +1103,6 @@ function SurfaceMessage({ text, tone }: { text: string; tone: "warning" | "muted
             </Text>
         </View>
     )
-}
-
-function getFileSelectionValue(file: Torrentstream_FilePreview | DebridClient_FilePreview): string {
-    return "fileId" in file ? file.fileId : String(file.index)
 }
 
 function uniqueInts(values?: string[]) {

@@ -15,7 +15,12 @@ import {
 } from "@/lib/search/search-constants"
 import { filterMediaTags, type MediaTag } from "@/lib/search/tag-filter"
 import { cn } from "@/lib/utils"
-import { COLLECTION_SORTING_OPTIONS, CollectionParams, DEFAULT_COLLECTION_PARAMS } from "@/lib/utils/filtering"
+import {
+    COLLECTION_SORTING_OPTIONS,
+    CollectionParams,
+    countActiveCollectionFilters,
+    DEFAULT_COLLECTION_PARAMS,
+} from "@/lib/utils/filtering"
 import Ionicons from "@expo/vector-icons/Ionicons"
 import { type BottomSheetScrollViewMethods, BottomSheetTextInput } from "@gorhom/bottom-sheet"
 import * as React from "react"
@@ -33,18 +38,6 @@ const styles = StyleSheet.create({
         includeFontPadding: false,
     },
 })
-
-export function countActiveCollectionFilters(params: CollectionParams, type: "anime" | "manga"): number {
-    let count = 0
-    if (params.sorting !== "SCORE_DESC") count++
-    if (params.genre && params.genre.length > 0) count++
-    if (params.tags && params.tags.length > 0) count++
-    if (params.status !== null) count++
-    if (params.format !== null) count++
-    if (params.season !== null && type === "anime") count++
-    if (params.year !== null) count++
-    return count
-}
 
 type CollectionFilterSheetProps = {
     open: boolean

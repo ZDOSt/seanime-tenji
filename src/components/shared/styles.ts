@@ -1,5 +1,5 @@
 import { COLORS } from "@/constants/colors"
-import { NativeStackNavigationOptions } from "@react-navigation/native-stack"
+import type { NativeStackNavigationOptions } from "expo-router"
 import { Platform } from "react-native"
 
 export const Styles = {

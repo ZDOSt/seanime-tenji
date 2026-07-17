@@ -1,7 +1,7 @@
 import { SeaImage } from "@/components/shared/sea-image"
 import { getEpisodeCardWidth } from "@/lib/responsive-card-layout"
 import * as React from "react"
-import { Pressable, Text, useWindowDimensions, View } from "react-native"
+import { Animated, Platform, Pressable, Text, useWindowDimensions, View } from "react-native"
 
 type EpisodeCardProps = {
     cardWidth?: number
@@ -37,16 +37,33 @@ export const EpisodeCard = React.memo(function EpisodeCard(props: EpisodeCardPro
     } = props
     const { width: screenWidth } = useWindowDimensions()
     const resolvedCardWidth = cardWidth ?? getEpisodeCardWidth(screenWidth)
+    const [focused, setFocused] = React.useState(false)
+    const scale = React.useRef(new Animated.Value(1)).current
+
+    const setFocus = React.useCallback((next: boolean) => {
+        setFocused(next)
+        Animated.timing(scale, {
+            toValue: next ? 1.04 : 1,
+            duration: 110,
+            useNativeDriver: true,
+        }).start()
+    }, [scale])
 
     return (
         <Pressable
             onPress={disabled ? undefined : onPress}
             disabled={disabled || !onPress}
+            onFocus={() => setFocus(true)}
+            onBlur={() => setFocus(false)}
         >
-            <View style={{ width: resolvedCardWidth }}>
+            <Animated.View style={{ width: resolvedCardWidth, transform: [{ scale }] }}>
                 <View
                     className={small ? "relative mb-1.5" : "relative mb-2"}
-                    style={{ borderRadius: 12, overflow: "hidden" }}
+                    style={{
+                        borderRadius: 12,
+                        overflow: "hidden",
+                        borderColor: focused && Platform.isTV ? "#b8b0ff" : "transparent",
+                    }}
                 >
                     <SeaImage
                         source={{ uri: image }}
@@ -104,7 +121,7 @@ export const EpisodeCard = React.memo(function EpisodeCard(props: EpisodeCardPro
                         className={small ? "text-xs text-muted-foreground shrink-0" : "text-muted-foreground shrink-0"}
                     >{length}m</Text>}
                 </View>
-            </View>
+            </Animated.View>
         </Pressable>
     )
 })

@@ -2,7 +2,10 @@ import React from "react"
 import { CONTROLS_HIDE_DELAY, LOCKED_CONTROLS_HIDE_DELAY } from "../constants"
 import type { GestureRefs } from "../types"
 
-export function useControlsVisibility(gRef: React.RefObject<GestureRefs>) {
+export function useControlsVisibility(
+    gRef: React.RefObject<GestureRefs>,
+    hideDelay = CONTROLS_HIDE_DELAY,
+) {
     const [controlsVisibleState, setControlsVisibleState] = React.useState(true)
     const [controlsLocked, setControlsLocked] = React.useState(false)
     const hideTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -30,14 +33,14 @@ export function useControlsVisibility(gRef: React.RefObject<GestureRefs>) {
         const { paused, controlsLocked: locked } = gRef.current
         if (paused) return
 
-        const delay = locked ? LOCKED_CONTROLS_HIDE_DELAY : CONTROLS_HIDE_DELAY
+        const delay = locked ? LOCKED_CONTROLS_HIDE_DELAY : hideDelay
         const version = hideTimerVersion.current
         hideTimer.current = setTimeout(() => {
             if (hideTimerVersion.current !== version) return
             hideTimer.current = null
             setControlsVisible(false)
         }, delay)
-    }, [clearHideTimer, gRef, setControlsVisible])
+    }, [clearHideTimer, gRef, hideDelay, setControlsVisible])
 
     const showControls = React.useCallback(() => {
         setControlsVisible(true)

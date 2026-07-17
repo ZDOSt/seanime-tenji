@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button"
 import React from "react"
-import { Text, useWindowDimensions, View } from "react-native"
+import { Platform, Text, useWindowDimensions, View } from "react-native"
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated"
 
 interface AutoNextCardProps {
@@ -61,7 +61,11 @@ export function AutoNextCard({
                         </Text>
                     </Button>
 
-                    <Button className="min-w-0 flex-1" onPress={onPlayNow}>
+                    <Button
+                        className="min-w-0 flex-1"
+                        onPress={onPlayNow}
+                        hasTVPreferredFocus={Platform.isTV}
+                    >
                         <Text className="text-sm font-bold" numberOfLines={1}>
                             Play now
                         </Text>
@@ -109,7 +113,11 @@ export function NextEpisodeConfirmCard({
                         <Text className="text-sm font-semibold text-foreground">Cancel</Text>
                     </Button>
 
-                    <Button className="flex-1" onPress={onConfirm}>
+                    <Button
+                        className="flex-1"
+                        onPress={onConfirm}
+                        hasTVPreferredFocus={Platform.isTV}
+                    >
                         <Text className="text-sm font-bold">Play now</Text>
                     </Button>
                 </View>

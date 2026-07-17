@@ -3,12 +3,15 @@ import type { MobilePlaybackSource } from "@/lib/player/types"
 import { cn } from "@/lib/utils"
 import { ChevronLeft, List, Pause, Play, Settings, SkipForward, Unlock } from "lucide-react-native"
 import React from "react"
-import { Platform, Text, View, type ViewStyle } from "react-native"
-import { GestureDetector, Pressable } from "react-native-gesture-handler"
+import { Platform, Pressable as RNPressable, Text, View, type ViewStyle } from "react-native"
+import { GestureDetector, Pressable as GHPressable } from "react-native-gesture-handler"
 import type { ComposedGesture, GestureType } from "react-native-gesture-handler"
 import Animated, { type AnimatedStyle, FadeIn, FadeOut, type SharedValue, useAnimatedStyle, withTiming } from "react-native-reanimated"
-import { formatTime } from "./helpers"
+import { BUFFER_FILL } from "./constants"
+import { formatTime, isSkippableChapter } from "./helpers"
 import type { PlayerPanel } from "./types"
+
+const Pressable = Platform.isTV ? RNPressable : GHPressable
 
 export function Pill({ text, color }: { text: string; color?: string }) {
     return (
@@ -24,14 +27,22 @@ export function PlayerIconButton({ icon, onPress, active, disabled }: {
     active?: boolean
     disabled?: boolean
 }) {
+    const [focused, setFocused] = React.useState(false)
+
     return (
-        <Pressable onPress={disabled ? undefined : onPress} hitSlop={8}>
+        <Pressable
+            onPress={disabled ? undefined : onPress}
+            hitSlop={8}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+        >
             {({ pressed }) => (
                 <View
                     className={cn(
-                        "h-9 w-9 items-center justify-center rounded-full",
+                        "h-9 w-9 items-center justify-center rounded-full border-2 border-transparent",
                         disabled ? "opacity-30" : "opacity-100",
-                        active ? "bg-white/15" : pressed ? "bg-white/10" : "bg-white/5",
+                        active ? "bg-white/15" : pressed || focused ? "bg-white/15" : "bg-white/5",
+                        focused && Platform.isTV && "border-brand-100",
                     )}
                 >
                     {icon}
@@ -76,6 +87,33 @@ function SegmentFill({
     )
 }
 
+function SegmentBuffer({
+    bufferedRatio,
+    startProgress,
+    endProgress,
+}: {
+    bufferedRatio: number
+    startProgress: number
+    endProgress: number
+}) {
+    const ratio = (bufferedRatio - startProgress) / Math.max(0.0001, endProgress - startProgress)
+    const clamped = Math.min(1, Math.max(0, ratio))
+
+    return (
+        <View
+            style={{
+                position: "absolute",
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: `${clamped * 100}%`,
+                backgroundColor: BUFFER_FILL,
+                borderRadius: 999,
+            }}
+        />
+    )
+}
+
 interface ControlsOverlayProps {
     visible: boolean
     source: MobilePlaybackSource | null
@@ -91,6 +129,7 @@ interface ControlsOverlayProps {
     seekBarGlowStyle: AnimatedStyle<ViewStyle>
     chapterMarkers: Array<{ key: string; left: number; progress: number }>
     progressRatio: number
+    bufferedRatio: number
     displayTime: number
     isSeeking: boolean
     seekingChapter?: PlayerChapter
@@ -108,24 +147,19 @@ interface ControlsOverlayProps {
     buttonSeekSec: number
 }
 
-function isSkippableChapter(title?: string) {
-    if (!title) return false
-    const normalized = title.trim().toLowerCase()
-    return /opening$|^opening\s|^op$|ending$|^ending\s|^ed$|^credits/i.test(normalized)
-}
-
 export function ControlsOverlay(props: ControlsOverlayProps) {
     const {
         visible, source, state, insets, zoomMode, panel,
         seekBarGesture, onSeekBarLayout,
         seekBarTrackStyle, seekBarFillStyle, seekBarThumbStyle, seekBarGlowStyle,
-        chapterMarkers, progressRatio,
+        chapterMarkers, progressRatio, bufferedRatio,
         displayTime, isSeeking, seekingChapter,
         onBack, onTogglePlayPause, scheduleHide, clearHideTimer, setPanel,
         canPlayNext, onManualNextEpisode,
         chapters, seekBarProgress,
         onLockScreen, onSeekRelative, buttonSeekSec,
     } = props
+    const [focusedControl, setFocusedControl] = React.useState<"back" | "play" | "next" | null>(null)
 
     const animatedStyle = useAnimatedStyle(() => ({
         opacity: withTiming(visible ? 1 : 0, { duration: 150 }),
@@ -181,7 +215,16 @@ export function ControlsOverlay(props: ControlsOverlayProps) {
 
             <View pointerEvents="box-none" className="absolute left-0 right-0 top-0">
                 <View className="flex-row items-center pb-2" style={{ paddingTop: insets.top + 4, paddingLeft: topPadL, paddingRight: topPadR }}>
-                    <Pressable onPress={onBack} hitSlop={12} className="p-2">
+                    <Pressable
+                        onPress={onBack}
+                        hitSlop={12}
+                        onFocus={() => setFocusedControl("back")}
+                        onBlur={() => setFocusedControl(null)}
+                        className={cn(
+                            "rounded-full border-2 border-transparent p-2",
+                            focusedControl === "back" && Platform.isTV && "border-brand-100 bg-white/15",
+                        )}
+                    >
                         <ChevronLeft size={28} color="#fff" />
                     </Pressable>
 
@@ -288,6 +331,11 @@ export function ControlsOverlay(props: ControlsOverlayProps) {
                                                 overflow: "hidden",
                                             }}
                                         >
+                                            <SegmentBuffer
+                                                bufferedRatio={bufferedRatio}
+                                                startProgress={segment.startProgress}
+                                                endProgress={segment.endProgress}
+                                            />
                                             <SegmentFill
                                                 seekBarProgress={seekBarProgress}
                                                 startProgress={segment.startProgress}
@@ -326,10 +374,20 @@ export function ControlsOverlay(props: ControlsOverlayProps) {
                             onPress={() => {
                                 onTogglePlayPause()
                                 scheduleHide()
-                            }} hitSlop={12}
+                            }}
+                            hitSlop={12}
+                            hasTVPreferredFocus={Platform.isTV && visible}
+                            onFocus={() => setFocusedControl("play")}
+                            onBlur={() => setFocusedControl(null)}
                         >
                             {({ pressed }) => (
-                                <View className={cn("h-10 w-10 items-center justify-center rounded-full", pressed ? "bg-white/15" : "bg-white/10")}>
+                                <View
+                                    className={cn(
+                                        "h-10 w-10 items-center justify-center rounded-full border-2 border-transparent",
+                                        pressed || focusedControl === "play" ? "bg-white/15" : "bg-white/10",
+                                        focusedControl === "play" && Platform.isTV && "border-brand-100",
+                                    )}
+                                >
                                     {state.paused
                                         ? <Play size={24} color="#fff" fill="#fff" />
                                         : <Pause size={24} color="#fff" fill="#fff" />}
@@ -369,13 +427,20 @@ export function ControlsOverlay(props: ControlsOverlayProps) {
                         </Text>
                     </View>
 
-                    <Pressable onPress={onManualNextEpisode} disabled={!canPlayNext} hitSlop={12}>
+                    <Pressable
+                        onPress={onManualNextEpisode}
+                        disabled={!canPlayNext}
+                        hitSlop={12}
+                        onFocus={() => setFocusedControl("next")}
+                        onBlur={() => setFocusedControl(null)}
+                    >
                         {({ pressed }) => (
                             <View
                                 className={cn(
-                                    "h-10 w-10 items-center justify-center rounded-full",
+                                    "h-10 w-10 items-center justify-center rounded-full border-2 border-transparent",
                                     canPlayNext ? "opacity-100" : "opacity-40",
-                                    !canPlayNext ? "bg-white/5" : pressed ? "bg-white/15" : "bg-white/10",
+                                    !canPlayNext ? "bg-white/5" : pressed || focusedControl === "next" ? "bg-white/15" : "bg-white/10",
+                                    focusedControl === "next" && Platform.isTV && "border-brand-100",
                                 )}
                             >
                                 <SkipForward size={16} color="#fff" />

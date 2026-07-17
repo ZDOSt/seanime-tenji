@@ -54,6 +54,7 @@ class PiPController(private val context: Context, private val appContext: AppCon
     private var currentPosition: Double = 0.0
     private var currentDuration: Double = 0.0
     private var playbackRate: Double = 1.0
+    private var autoEnterEnabled: Boolean = false
 
     private var videoWidth: Int = 0
     private var videoHeight: Int = 0
@@ -115,14 +116,25 @@ class PiPController(private val context: Context, private val appContext: AppCon
     }
 
     fun stopPictureInPicture() {
+        autoEnterEnabled = false
         isInPiPMode = false
         pipEntryNotified = false
         unregisterLifecycleCallbacks()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val activity = getActivity()
-            if (activity?.isInPictureInPictureMode == true) {
-                activity.moveTaskToBack(false)
+
+        val activity = getActivity() ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                activity.setPictureInPictureParams(
+                    PictureInPictureParams.Builder()
+                        .setAutoEnterEnabled(false)
+                        .build()
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to clear PiP auto-enter params: ${e.message}")
             }
+        }
+        if (activity.isInPictureInPictureMode) {
+            activity.moveTaskToBack(false)
         }
     }
 
@@ -135,6 +147,7 @@ class PiPController(private val context: Context, private val appContext: AppCon
 
     fun setPlaybackRate(rate: Double) {
         playbackRate = rate
+        autoEnterEnabled = rate > 0
 
         if (rate > 0) {
             registerLifecycleCallbacks()
@@ -215,7 +228,7 @@ class PiPController(private val context: Context, private val appContext: AppCon
         builder.setActions(buildPiPActions())
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            builder.setAutoEnterEnabled(forEntering || playbackRate > 0)
+            builder.setAutoEnterEnabled(forEntering || autoEnterEnabled)
         }
 
         return builder.build()

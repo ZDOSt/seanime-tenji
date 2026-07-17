@@ -142,6 +142,7 @@ export type PlayerState = {
     paused: boolean
     currentTime: number
     duration: number
+    cacheSeconds: number
     eofReached: boolean
     chapters: PlayerChapter[]
     audioTracks: PlayerTrack[]

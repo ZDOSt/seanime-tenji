@@ -139,8 +139,12 @@ public class ExpoOfflineLoggerModule: Module {
     }
 
     Function("copyToClipboard") { (text: String) -> Bool in
+#if os(tvOS)
+      return false
+#else
       UIPasteboard.general.string = text
       return true
+#endif
     }
   }
 

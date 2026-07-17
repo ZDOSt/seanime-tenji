@@ -2,13 +2,11 @@ import { getClientIdentity } from "@/api/client/client-identity"
 import {
     Anime_Entry,
     Anime_Episode,
-    DebridClient_FilePreview,
     ExtensionRepo_AnimeTorrentProviderExtensionItem,
     Habari_Metadata,
     HibikeTorrent_AnimeTorrent,
     HibikeTorrent_BatchEpisodeFiles,
     Status,
-    Torrentstream_FilePreview,
 } from "@/api/generated/types"
 import { useGetAnimeEpisodeCollection } from "@/api/hooks/anime.hooks"
 import { useDebridCancelStream, useDebridGetTorrentFilePreviews, useDebridStartStream } from "@/api/hooks/debrid.hooks"
@@ -35,6 +33,11 @@ import { logger } from "@/lib/utils/logger"
 import { useAtom } from "jotai"
 import { useAtomValue } from "jotai/react"
 import * as React from "react"
+import {
+    getFileSelectionValue,
+    type StreamFilePreview,
+} from "./torrent-stream-picker-utils"
+import { batchAction } from "./previous-batch"
 
 const log = logger("torrent-stream")
 
@@ -47,8 +50,6 @@ export type TorrentResolution = (typeof TORRENT_RESOLUTIONS)[number] | undefined
 export type TorrentSearchMode = "smart" | "simple"
 export type TorrentSheetStage = "torrents" | "files" | "providers"
 export type StreamEpisodeLaunchMode = "manual" | "previous-batch"
-
-type StreamFilePreview = Torrentstream_FilePreview | DebridClient_FilePreview
 
 type PreviousBatchSelection = {
     torrent: HibikeTorrent_AnimeTorrent
@@ -414,86 +415,56 @@ export function useTorrentStreamController({ entry, mode = "stream" }: UseTorren
     }, [canUsePreviousBatch])
 
     const startAutoSelectedStream = React.useCallback((episode: Anime_Episode, mode: StreamMode = streamMode) => {
-            if (!episode.aniDBEpisode || !mediaId) return
-            episodeSelectionLockedRef.current = true
-            log.info(`Starting ${mode} stream`, {
-                mediaId,
-                episodeNumber: episode.episodeNumber,
-                selection: "auto",
+        if (!episode.aniDBEpisode || !mediaId) return
+        episodeSelectionLockedRef.current = true
+        log.info(`Starting ${mode} stream`, {
+            mediaId,
+            episodeNumber: episode.episodeNumber,
+            selection: "auto",
+        })
+
+        setPendingInfo({
+            streamMode: mode,
+            mediaId,
+            episodeNumber: episode.episodeNumber,
+            media: entry.media ?? undefined,
+            episode,
+            entryListData: entry.listData ?? undefined,
+            entryView: "torrentstream",
+            nextEpisodeAction: mode === "debrid" ? "debridstream-auto-select" : "torrentstream-auto-select",
+        })
+        setActiveStreamSession(toActiveStreamSession(mode,
+            entry,
+            episode,
+            mode === "debrid" ? "Selecting best torrent..." : "Preparing stream..."))
+        setStreamSessionMode(mode)
+        setIsPreparing(true)
+        if (mode === "debrid") {
+            setLoadingState(null)
+            setDebridStreamState({
+                status: "started",
+                torrentName: "-",
+                message: "Selecting best torrent...",
             })
 
-            setPendingInfo({
-                streamMode: mode,
-                mediaId,
-                episodeNumber: episode.episodeNumber,
-                media: entry.media ?? undefined,
-                episode,
-                entryListData: entry.listData ?? undefined,
-                entryView: "torrentstream",
-                nextEpisodeAction: mode === "debrid" ? "debridstream-auto-select" : "torrentstream-auto-select",
-            })
-            setActiveStreamSession(toActiveStreamSession(mode,
-                entry,
-                episode,
-                mode === "debrid" ? "Selecting best torrent..." : "Preparing stream..."))
-            setStreamSessionMode(mode)
-            setIsPreparing(true)
-            if (mode === "debrid") {
-                setLoadingState(null)
-                setDebridStreamState({
-                    status: "started",
-                    torrentName: "-",
-                    message: "Selecting best torrent...",
-                })
-
-                startDebridStream(
-                    {
-                        mediaId,
-                        episodeNumber: episode.episodeNumber,
-                        aniDBEpisode: episode.aniDBEpisode,
-                        autoSelect: true,
-                        fileId: "",
-                        playbackType: "externalPlayerLink",
-                        clientId: getClientIdentity().clientId,
-                    },
-                    {
-                        onSuccess: () => {
-                            log.success("Debrid stream request accepted", { mediaId, episodeNumber: episode.episodeNumber })
-                            setIsPreparing(true)
-                            resetPicker()
-                        },
-                        onError: error => {
-                            log.error("Debrid stream request failed", {
-                                mediaId,
-                                episodeNumber: episode.episodeNumber,
-                            }, error)
-                            clearPendingStreamState()
-                        },
-                    },
-                )
-                return
-            }
-
-            setDebridStreamState(null)
-            setLoadingState("LOADING")
-
-            startTorrentStream(
+            startDebridStream(
                 {
                     mediaId,
                     episodeNumber: episode.episodeNumber,
                     aniDBEpisode: episode.aniDBEpisode,
                     autoSelect: true,
+                    fileId: "",
                     playbackType: "externalPlayerLink",
                     clientId: getClientIdentity().clientId,
                 },
                 {
                     onSuccess: () => {
-                        log.success("Torrent stream request accepted", { mediaId, episodeNumber: episode.episodeNumber })
+                        log.success("Debrid stream request accepted", { mediaId, episodeNumber: episode.episodeNumber })
                         setIsPreparing(true)
                         resetPicker()
                     },
                     onError: error => {
-                        log.error("Torrent stream request failed", {
+                        log.error("Debrid stream request failed", {
                             mediaId,
                             episodeNumber: episode.episodeNumber,
                         }, error)
@@ -501,103 +472,97 @@ export function useTorrentStreamController({ entry, mode = "stream" }: UseTorren
                     },
                 },
             )
-        },
+            return
+        }
+
+        setDebridStreamState(null)
+        setLoadingState("LOADING")
+
+        startTorrentStream(
+            {
+                mediaId,
+                episodeNumber: episode.episodeNumber,
+                aniDBEpisode: episode.aniDBEpisode,
+                autoSelect: true,
+                playbackType: "externalPlayerLink",
+                clientId: getClientIdentity().clientId,
+            },
+            {
+                onSuccess: () => {
+                    log.success("Torrent stream request accepted", { mediaId, episodeNumber: episode.episodeNumber })
+                    setIsPreparing(true)
+                    resetPicker()
+                },
+                onError: error => {
+                    log.error("Torrent stream request failed", {
+                        mediaId,
+                        episodeNumber: episode.episodeNumber,
+                    }, error)
+                    clearPendingStreamState()
+                },
+            },
+        )
+    },
         [clearPendingStreamState, entry, mediaId, resetPicker, setActiveStreamSession, setDebridStreamState, setIsPreparing, setLoadingState,
             setPendingInfo, setStreamSessionMode, startDebridStream, startTorrentStream, streamMode])
 
     const startManualStream = React.useCallback((params: {
-            episode: Anime_Episode
-            torrent: HibikeTorrent_AnimeTorrent
-            fileId?: string
-            fileIndex?: number
-            batchEpisodeFiles?: HibikeTorrent_BatchEpisodeFiles
-            launchMode?: StreamEpisodeLaunchMode
-        }, mode: StreamMode = streamMode) => {
-            if (!params.episode.aniDBEpisode || !mediaId) return
-            episodeSelectionLockedRef.current = true
-            log.info(`Starting ${mode} stream`, {
-                mediaId,
-                episodeNumber: params.episode.episodeNumber,
-                selection: params.launchMode ?? "manual",
-                isBatch: !!params.torrent.isBatch,
-                hasFileSelection: params.fileId !== undefined || params.fileIndex !== undefined,
+        episode: Anime_Episode
+        torrent: HibikeTorrent_AnimeTorrent
+        fileId?: string
+        fileIndex?: number
+        batchEpisodeFiles?: HibikeTorrent_BatchEpisodeFiles
+        launchMode?: StreamEpisodeLaunchMode
+    }, mode: StreamMode = streamMode) => {
+        if (!params.episode.aniDBEpisode || !mediaId) return
+        episodeSelectionLockedRef.current = true
+        log.info(`Starting ${mode} stream`, {
+            mediaId,
+            episodeNumber: params.episode.episodeNumber,
+            selection: params.launchMode ?? "manual",
+            isBatch: !!params.torrent.isBatch,
+            hasFileSelection: params.fileId !== undefined || params.fileIndex !== undefined,
+        })
+
+        setPendingInfo({
+            streamMode: mode,
+            mediaId,
+            episodeNumber: params.episode.episodeNumber,
+            media: entry.media ?? undefined,
+            episode: params.episode,
+            entryListData: entry.listData ?? undefined,
+            entryView: "torrentstream",
+            nextEpisodeAction: mode === "debrid"
+                ? (params.launchMode === "previous-batch" ? "debridstream-previous-batch" : "debridstream-manual")
+                : (params.launchMode === "previous-batch" ? "torrentstream-previous-batch" : "torrentstream-manual"),
+        })
+        setActiveStreamSession(toActiveStreamSession(
+            mode,
+            entry,
+            params.episode,
+            mode === "debrid"
+                ? (params.fileId ? "Preparing selected file..." : "Analyzing selected torrent...")
+                : "Preparing stream...",
+            params.torrent.name,
+        ))
+        setStreamSessionMode(mode)
+        setIsPreparing(true)
+        if (mode === "debrid") {
+            setLoadingState(null)
+            setDebridStreamState({
+                status: "started",
+                torrentName: params.torrent.name,
+                message: params.fileId ? "Preparing selected file..." : "Analyzing selected torrent...",
             })
 
-            setPendingInfo({
-                streamMode: mode,
-                mediaId,
-                episodeNumber: params.episode.episodeNumber,
-                media: entry.media ?? undefined,
-                episode: params.episode,
-                entryListData: entry.listData ?? undefined,
-                entryView: "torrentstream",
-                nextEpisodeAction: mode === "debrid"
-                    ? (params.launchMode === "previous-batch" ? "debridstream-previous-batch" : "debridstream-manual")
-                    : (params.launchMode === "previous-batch" ? "torrentstream-previous-batch" : "torrentstream-manual"),
-            })
-            setActiveStreamSession(toActiveStreamSession(
-                mode,
-                entry,
-                params.episode,
-                mode === "debrid"
-                    ? (params.fileId ? "Preparing selected file..." : "Analyzing selected torrent...")
-                    : "Preparing stream...",
-                params.torrent.name,
-            ))
-            setStreamSessionMode(mode)
-            setIsPreparing(true)
-            if (mode === "debrid") {
-                setLoadingState(null)
-                setDebridStreamState({
-                    status: "started",
-                    torrentName: params.torrent.name,
-                    message: params.fileId ? "Preparing selected file..." : "Analyzing selected torrent...",
-                })
-
-                startDebridStream(
-                    {
-                        mediaId,
-                        episodeNumber: params.episode.episodeNumber,
-                        aniDBEpisode: params.episode.aniDBEpisode,
-                        autoSelect: false,
-                        torrent: params.torrent,
-                        fileId: params.fileId ?? "",
-                        fileIndex: params.fileIndex,
-                        batchEpisodeFiles: params.batchEpisodeFiles,
-                        playbackType: "externalPlayerLink",
-                        clientId: getClientIdentity().clientId,
-                    },
-                    {
-                        onSuccess: () => {
-                            log.success("Debrid stream request accepted", {
-                                mediaId,
-                                episodeNumber: params.episode.episodeNumber,
-                            })
-                            setIsPreparing(true)
-                            resetPicker()
-                        },
-                        onError: error => {
-                            log.error("Debrid stream request failed", {
-                                mediaId,
-                                episodeNumber: params.episode.episodeNumber,
-                            }, error)
-                            clearPendingStreamState()
-                        },
-                    },
-                )
-                return
-            }
-
-            setDebridStreamState(null)
-            setLoadingState("LOADING")
-
-            startTorrentStream(
+            startDebridStream(
                 {
                     mediaId,
                     episodeNumber: params.episode.episodeNumber,
                     aniDBEpisode: params.episode.aniDBEpisode,
                     autoSelect: false,
                     torrent: params.torrent,
+                    fileId: params.fileId ?? "",
                     fileIndex: params.fileIndex,
                     batchEpisodeFiles: params.batchEpisodeFiles,
                     playbackType: "externalPlayerLink",
@@ -605,7 +570,7 @@ export function useTorrentStreamController({ entry, mode = "stream" }: UseTorren
                 },
                 {
                     onSuccess: () => {
-                        log.success("Torrent stream request accepted", {
+                        log.success("Debrid stream request accepted", {
                             mediaId,
                             episodeNumber: params.episode.episodeNumber,
                         })
@@ -613,7 +578,7 @@ export function useTorrentStreamController({ entry, mode = "stream" }: UseTorren
                         resetPicker()
                     },
                     onError: error => {
-                        log.error("Torrent stream request failed", {
+                        log.error("Debrid stream request failed", {
                             mediaId,
                             episodeNumber: params.episode.episodeNumber,
                         }, error)
@@ -621,7 +586,43 @@ export function useTorrentStreamController({ entry, mode = "stream" }: UseTorren
                     },
                 },
             )
-        },
+            return
+        }
+
+        setDebridStreamState(null)
+        setLoadingState("LOADING")
+
+        startTorrentStream(
+            {
+                mediaId,
+                episodeNumber: params.episode.episodeNumber,
+                aniDBEpisode: params.episode.aniDBEpisode,
+                autoSelect: false,
+                torrent: params.torrent,
+                fileIndex: params.fileIndex,
+                batchEpisodeFiles: params.batchEpisodeFiles,
+                playbackType: "externalPlayerLink",
+                clientId: getClientIdentity().clientId,
+            },
+            {
+                onSuccess: () => {
+                    log.success("Torrent stream request accepted", {
+                        mediaId,
+                        episodeNumber: params.episode.episodeNumber,
+                    })
+                    setIsPreparing(true)
+                    resetPicker()
+                },
+                onError: error => {
+                    log.error("Torrent stream request failed", {
+                        mediaId,
+                        episodeNumber: params.episode.episodeNumber,
+                    }, error)
+                    clearPendingStreamState()
+                },
+            },
+        )
+    },
         [clearPendingStreamState, entry, mediaId, resetPicker, setActiveStreamSession, setDebridStreamState, setIsPreparing, setLoadingState,
             setPendingInfo, setStreamSessionMode, startDebridStream, startTorrentStream, streamMode])
 
@@ -684,7 +685,7 @@ export function useTorrentStreamController({ entry, mode = "stream" }: UseTorren
             fileId: guessedFileIndex !== null ? String(guessedFileIndex) : "",
             fileIndex: guessedFileIndex,
             batchEpisodeFiles: guessedFileIndex !== null && batchHistory.batchEpisodeFiles
-            && (mode !== "debrid" || supportsIndexedDebridHistory)
+                && (mode !== "debrid" || supportsIndexedDebridHistory)
                 ? {
                     ...batchHistory.batchEpisodeFiles,
                     current: guessedFileIndex,
@@ -696,80 +697,60 @@ export function useTorrentStreamController({ entry, mode = "stream" }: UseTorren
     }, [batchHistory, guessPreviousBatchFileIndex, streamMode, supportsIndexedDebridHistory, supportsPreviousBatch])
 
     const handleEpisodePress = React.useCallback((episode: Anime_Episode) => {
-            if (episodeSelectionLockedRef.current) return
+        if (episodeSelectionLockedRef.current) return
 
-            setSelectedEpisodeNumber(episode.episodeNumber)
-            const sMode = streamMode
+        setSelectedEpisodeNumber(episode.episodeNumber)
+        const sMode = streamMode
 
-            if (mode === "download") {
-                if (usePreviousBatch && batchHistory?.torrent && episode.aniDBEpisode) {
-                    const previousBatchSelection = getPreviousBatchSelection(episode, sMode)
-                    if (previousBatchSelection) {
-                        setSelectedTorrent(previousBatchSelection.torrent)
-                        setSheetStage("files")
-                        setSelectedFileId(previousBatchSelection.fileId || null)
-                        setPickerOpen(true)
-                        return
-                    }
-                }
-                openPickerForEpisode(episode, "torrents", sMode)
-                return
-            }
-
-            if (autoSelect && !episodeCollection?.hasMappingError && episode.aniDBEpisode) {
-                startAutoSelectedStream(episode, sMode)
-                return
-            }
-
+        if (mode === "download") {
             if (usePreviousBatch && batchHistory?.torrent && episode.aniDBEpisode) {
                 const previousBatchSelection = getPreviousBatchSelection(episode, sMode)
-
-                if (!previousBatchSelection) {
-                    openPickerForEpisode(episode, "torrents", sMode)
-                    return
-                }
-
-                if (sMode === "debrid" && autoSelectFile) {
-                    startManualStream({
-                        episode,
-                        torrent: previousBatchSelection.torrent,
-                        fileId: previousBatchSelection.fileId,
-                        fileIndex: previousBatchSelection.fileIndex ?? undefined,
-                        batchEpisodeFiles: previousBatchSelection.batchEpisodeFiles,
-                        launchMode: "previous-batch",
-                    }, sMode)
-                    return
-                }
-
-                if (!autoSelectFile) {
+                if (previousBatchSelection) {
                     setSelectedTorrent(previousBatchSelection.torrent)
                     setSheetStage("files")
                     setSelectedFileId(previousBatchSelection.fileId || null)
                     setPickerOpen(true)
                     return
                 }
+            }
+            openPickerForEpisode(episode, "torrents", sMode)
+            return
+        }
 
-                if (previousBatchSelection.fileIndex !== null) {
-                    startManualStream({
-                        episode,
-                        torrent: previousBatchSelection.torrent,
-                        fileId: previousBatchSelection.fileId,
-                        fileIndex: previousBatchSelection.fileIndex,
-                        batchEpisodeFiles: previousBatchSelection.batchEpisodeFiles,
-                        launchMode: "previous-batch",
-                    }, sMode)
-                    return
-                }
+        if (autoSelect && !episodeCollection?.hasMappingError && episode.aniDBEpisode) {
+            startAutoSelectedStream(episode, sMode)
+            return
+        }
 
-                setSelectedTorrent(previousBatchSelection.torrent)
-                setSheetStage("files")
-                setSelectedFileId(previousBatchSelection.fileId || null)
-                setPickerOpen(true)
+        if (usePreviousBatch && batchHistory?.torrent && episode.aniDBEpisode) {
+            const previousBatchSelection = getPreviousBatchSelection(episode, sMode)
+
+            if (!previousBatchSelection) {
+                openPickerForEpisode(episode, "torrents", sMode)
                 return
             }
 
-            openPickerForEpisode(episode, "torrents", sMode)
-        },
+            if (batchAction(autoSelectFile, previousBatchSelection.fileIndex) === "start") {
+                startManualStream({
+                    episode,
+                    torrent: previousBatchSelection.torrent,
+                    fileId: previousBatchSelection.fileId,
+                    fileIndex: previousBatchSelection.fileIndex ?? undefined,
+                    batchEpisodeFiles: previousBatchSelection.batchEpisodeFiles,
+                    launchMode: "previous-batch",
+                }, sMode)
+                return
+            }
+
+            setSelectedTorrent(previousBatchSelection.torrent)
+            setSheetStage("files")
+            setSelectedFileId(previousBatchSelection.fileId || null)
+            setPickerOpen(true)
+            return
+        }
+
+        openPickerForEpisode(episode, "torrents", sMode)
+    },
         [autoSelect, autoSelectFile, batchHistory?.torrent, episodeCollection?.hasMappingError, getPreviousBatchSelection, openPickerForEpisode,
             startAutoSelectedStream, startManualStream, streamMode, usePreviousBatch, mode])
 
@@ -786,7 +767,7 @@ export function useTorrentStreamController({ entry, mode = "stream" }: UseTorren
             return
         }
 
-        if (mode === "debrid" || previousBatchSelection.fileIndex !== null) {
+        if (batchAction(autoSelectFile, previousBatchSelection.fileIndex) === "start") {
             startManualStream({
                 episode,
                 torrent: previousBatchSelection.torrent,
@@ -802,7 +783,7 @@ export function useTorrentStreamController({ entry, mode = "stream" }: UseTorren
         setSelectedFileId(null)
         setSheetStage("files")
         setPickerOpen(true)
-    }, [getPreviousBatchSelection, openPickerForEpisode, startManualStream, streamMode])
+    }, [autoSelectFile, getPreviousBatchSelection, openPickerForEpisode, startManualStream, streamMode])
 
     const handleConfirmTorrentSelection = React.useCallback(() => {
         if (!selectedEpisode) return
@@ -970,10 +951,6 @@ function toMobileResolution(value?: string | null): TorrentResolution {
         return clean as TorrentResolution
     }
     return undefined
-}
-
-function getFileSelectionValue(file: StreamFilePreview): string {
-    return "fileId" in file ? file.fileId : String(file.index)
 }
 
 function getDefaultStreamMode(serverStatus: Status | null | undefined): StreamMode {

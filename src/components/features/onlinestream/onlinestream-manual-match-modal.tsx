@@ -114,7 +114,7 @@ export function OnlinestreamManualMatchModal({
                         onPress={handleSearch}
                         disabled={isSearching || !query.trim()}
                         className={cn(
-                            "h-11 px-4 items-center justify-center rounded-xl",
+                            "h-11 px-4 items-center justify-center rounded-xl border-2 border-transparent focus:border-brand-100",
                             isSearching || !query.trim()
                                 ? "bg-card/30 border border-border/50"
                                 : "bg-primary active:opacity-80",
@@ -149,7 +149,7 @@ export function OnlinestreamManualMatchModal({
                         onPress={() => handleSelectResult(result)}
                         disabled={isMapping}
                         className={cn(
-                            "px-4 py-3.5 bg-card/30 border-x border-border/50 active:bg-white/10",
+                            "px-4 py-3.5 bg-card/30 border-2 border-border/50 active:bg-white/10 focus:border-brand-100 focus:bg-white/10",
                             index === 0 && "rounded-t-2xl border-t",
                             index === searchResults.length - 1 && "rounded-b-2xl border-b",
                             index < searchResults.length - 1 && "border-b border-b-border/30",

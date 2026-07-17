@@ -1,12 +1,21 @@
 import { downloadSettingsAtom } from "@/atoms/download-settings.atoms"
 import { ProfileMenuSection, ProfileMenuToggle, ProfileSubpageHeader, RowDivider } from "@/components/features/profile/profile-menu"
 import { useIOSScrollRefreshRateWorkaround } from "@/hooks/use-ios-scroll-refresh-rate-workaround"
+import { Redirect } from "expo-router"
 import { useAtom } from "jotai"
 import * as React from "react"
-import { ScrollView, Text, View } from "react-native"
+import { Platform, ScrollView, Text, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 export default function DownloadSettingsScreen() {
+    if (Platform.isTV) {
+        return <Redirect href="/(app)/(tabs)/(profile)" />
+    }
+
+    return <MobileDownloadSettingsScreen />
+}
+
+function MobileDownloadSettingsScreen() {
     const insets = useSafeAreaInsets()
     const [downloadSettings, setDownloadSettings] = useAtom(downloadSettingsAtom)
 

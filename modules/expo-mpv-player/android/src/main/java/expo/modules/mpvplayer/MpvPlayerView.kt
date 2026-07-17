@@ -12,14 +12,11 @@ package expo.modules.mpvplayer
 
 import android.content.Context
 import android.graphics.Color
-import android.graphics.Rect
-import android.graphics.SurfaceTexture
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.view.Surface
-import android.view.TextureView
-import android.view.View
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import android.view.ViewGroup
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.viewevent.EventDispatcher
@@ -36,7 +33,7 @@ data class VideoLoadConfig(
 )
 
 class MpvPlayerView(context: Context, appContext: AppContext) : ExpoView(context, appContext),
-    MPVLayerRenderer.Delegate, TextureView.SurfaceTextureListener, PiPController.Delegate {
+    MPVLayerRenderer.Delegate, SurfaceHolder.Callback, PiPController.Delegate {
 
     val onLoad by EventDispatcher()
     val onPlaybackStateChange by EventDispatcher()
@@ -45,7 +42,7 @@ class MpvPlayerView(context: Context, appContext: AppContext) : ExpoView(context
     val onTracksReady by EventDispatcher()
     val onPictureInPictureChange by EventDispatcher()
 
-    private var textureView: TextureView
+    private var surfaceView: SurfaceView
     private var renderer: MPVLayerRenderer? = null
     private var pipController: PiPController? = null
 
@@ -60,79 +57,80 @@ class MpvPlayerView(context: Context, appContext: AppContext) : ExpoView(context
     private var _isZoomedToFill: Boolean = false
     private var dispatchedPiPActive: Boolean = false
     private var dispatchedPaused: Boolean? = null
+    private var hostForeground: Boolean = true
+    private var pipRecoveryPending: Boolean = false
 
     private var rendererStarted: Boolean = false
-    private var pendingSurface: Surface? = null
-    private var surfaceTexture: SurfaceTexture? = null
-    private var surfaceWidth: Int = 0
-    private var surfaceHeight: Int = 0
 
-    private var isWaitingForPiPTransition: Boolean = false
-    private var isPiPSurfaceForced: Boolean = false
     private val pipHandler = Handler(Looper.getMainLooper())
-    private val redrawRunnable = Runnable {
-        renderer?.forceRedraw()
-    }
+    private val recoverRunnable = Runnable { recoverVideoOutput() }
 
     init {
         setBackgroundColor(Color.BLACK)
 
-        textureView = TextureView(context).apply {
+        surfaceView = SurfaceView(context).apply {
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
-            surfaceTextureListener = this@MpvPlayerView
         }
-        addView(textureView)
+        surfaceView.holder.addCallback(this)
+        surfaceView.addOnLayoutChangeListener { _, left, top, right, bottom,
+                                                oldLeft, oldTop, oldRight, oldBottom ->
+            val width = right - left
+            val height = bottom - top
+            val oldWidth = oldRight - oldLeft
+            val oldHeight = oldBottom - oldTop
+            if (width > 0 && height > 0 && (width != oldWidth || height != oldHeight)) {
+                renderer?.updateSurfaceSize(width, height)
+            }
+        }
+        addView(surfaceView)
 
         renderer = MPVLayerRenderer(context).also {
             it.delegate = this
         }
 
         pipController = PiPController(context, appContext).also {
-            it.setPlayerView(textureView)
+            it.setPlayerView(surfaceView)
             it.delegate = this
         }
     }
 
-    override fun onSurfaceTextureAvailable(surfaceTexture: SurfaceTexture, width: Int, height: Int) {
-        this.surfaceTexture = surfaceTexture
-        val surface = Surface(surfaceTexture)
-        surfaceTexture.setDefaultBufferSize(width, height)
+    override fun surfaceCreated(holder: SurfaceHolder) {
         surfaceReady = true
-        surfaceWidth = width
-        surfaceHeight = height
 
         if (rendererStarted) {
-            renderer?.attachSurface(surface)
-            renderer?.updateSurfaceSize(width, height)
-        } else {
-            pendingSurface = surface
+            renderer?.attachSurface(holder.surface)
+            syncSurfaceSize()
         }
 
         applyPendingSourceR()
+
+        if (hostForeground && pipRecoveryPending) {
+            scheduleRecovery()
+        }
     }
 
-    override fun onSurfaceTextureSizeChanged(surfaceTexture: SurfaceTexture, width: Int, height: Int) {
-        surfaceTexture.setDefaultBufferSize(width, height)
-        surfaceWidth = width
-        surfaceHeight = height
-        renderer?.updateSurfaceSize(width, height)
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+        if (width > 0 && height > 0) {
+            renderer?.updateSurfaceSize(width, height)
+        }
     }
 
-    override fun onSurfaceTextureDestroyed(surfaceTexture: SurfaceTexture): Boolean {
-        this.surfaceTexture = null
+    override fun surfaceDestroyed(holder: SurfaceHolder) {
         surfaceReady = false
-        surfaceWidth = 0
-        surfaceHeight = 0
-        pendingSurface?.release()
-        pendingSurface = null
         renderer?.detachSurface()
-        return false
     }
 
-    override fun onSurfaceTextureUpdated(surfaceTexture: SurfaceTexture) {}
+    private fun syncSurfaceSize() {
+        if (!surfaceReady) return
+        val width = surfaceView.width
+        val height = surfaceView.height
+        if (width > 0 && height > 0) {
+            renderer?.updateSurfaceSize(width, height)
+        }
+    }
 
     fun stageVideoOutput(value: String) {
         val output = VideoOutput.fromMpvValue(value)
@@ -158,10 +156,9 @@ class MpvPlayerView(context: Context, appContext: AppContext) : ExpoView(context
         if (!rendererStarted) {
             renderer?.start()
             rendererStarted = true
-            pendingSurface?.let { surface ->
-                pendingSurface = null
+            surfaceView.holder.surface?.takeIf { surfaceReady && it.isValid }?.let { surface ->
                 renderer?.attachSurface(surface)
-                renderer?.updateSurfaceSize(surfaceWidth, surfaceHeight)
+                syncSurfaceSize()
             }
         }
 
@@ -240,57 +237,16 @@ class MpvPlayerView(context: Context, appContext: AppContext) : ExpoView(context
     }
 
     fun startPictureInPicture(): Boolean {
-        isWaitingForPiPTransition = true
         val started = pipController?.startPictureInPicture() != null
         dispatchPictureInPictureState(started || isPictureInPictureActive())
 
         pipHandler.removeCallbacksAndMessages(null)
-        for (delay in longArrayOf(500, 1000, 1500, 2000)) {
-            pipHandler.postDelayed({ forcePiPBufferSize() }, delay)
-        }
+        pipHandler.postDelayed({ syncSurfaceSize() }, 100)
+        pipHandler.postDelayed({ syncSurfaceSize() }, 500)
         return started
     }
 
-    private fun forcePiPBufferSize() {
-        if (!isWaitingForPiPTransition || !surfaceReady) return
-
-        val rect = Rect()
-        textureView.getGlobalVisibleRect(rect)
-        val visW = rect.width()
-        val visH = rect.height()
-        val vw = textureView.width
-        val vh = textureView.height
-
-        if (visW <= 0 || visH <= 0 || (vw == visW && vh == visH)) return
-
-        surfaceTexture?.setDefaultBufferSize(visW, visH)
-        renderer?.updateSurfaceSize(visW, visH)
-
-        textureView.measure(
-            View.MeasureSpec.makeMeasureSpec(visW, View.MeasureSpec.EXACTLY),
-            View.MeasureSpec.makeMeasureSpec(visH, View.MeasureSpec.EXACTLY)
-        )
-        textureView.layout(0, 0, visW, visH)
-        isPiPSurfaceForced = true
-    }
-
-    private fun restoreFromPiP() {
-        if (!isPiPSurfaceForced) return
-        isPiPSurfaceForced = false
-
-        val lp = textureView.layoutParams
-        lp.width = ViewGroup.LayoutParams.MATCH_PARENT
-        lp.height = ViewGroup.LayoutParams.MATCH_PARENT
-        textureView.layoutParams = lp
-        requestLayout()
-
-        pipHandler.postDelayed({
-            renderer?.forceRedraw()
-        }, 100)
-    }
-
     fun stopPictureInPicture() {
-        isWaitingForPiPTransition = false
         pipHandler.removeCallbacksAndMessages(null)
         pipController?.stopPictureInPicture()
     }
@@ -382,7 +338,7 @@ class MpvPlayerView(context: Context, appContext: AppContext) : ExpoView(context
         return renderer?.getTechnicalInfo() ?: emptyMap()
     }
 
-    fun getPlayerView(): android.view.View = textureView
+    fun getPlayerView(): android.view.View = surfaceView
 
     override fun onPositionChanged(position: Double, duration: Double, cacheSeconds: Double) {
         cachedPosition = position
@@ -494,32 +450,65 @@ class MpvPlayerView(context: Context, appContext: AppContext) : ExpoView(context
     }
 
     override fun onPictureInPictureModeChanged(isInPiP: Boolean) {
+        pipHandler.removeCallbacksAndMessages(null)
+        pipHandler.postDelayed({ syncSurfaceSize() }, 100)
         if (isInPiP) {
-            if (!isWaitingForPiPTransition) {
-                isWaitingForPiPTransition = true
-                pipHandler.removeCallbacksAndMessages(null)
-                for (delay in longArrayOf(500, 1000, 1500, 2000)) {
-                    pipHandler.postDelayed({ forcePiPBufferSize() }, delay)
-                }
-            }
+            pipRecoveryPending = false
+            pipHandler.postDelayed({ syncSurfaceSize() }, 500)
         } else {
-            isWaitingForPiPTransition = false
-            pipHandler.removeCallbacksAndMessages(null)
-            restoreFromPiP()
+            pipRecoveryPending = true
+            if (hostForeground) scheduleRecovery()
         }
         onPictureInPictureChange(mapOf("isActive" to isInPiP))
         dispatchPictureInPictureState(isInPiP)
     }
 
+    fun setHostForeground(foreground: Boolean) {
+        hostForeground = foreground
+    }
+
+    fun onHostResume() {
+        hostForeground = true
+        if (!rendererStarted || currentUrl == null) return
+        if (isPictureInPictureActive()) return
+
+        if (!pipRecoveryPending && (renderer?.isTv != true || intendedPlayState)) return
+
+        scheduleRecovery()
+    }
+
+    private fun scheduleRecovery() {
+        pipHandler.removeCallbacks(recoverRunnable)
+        pipHandler.postDelayed(recoverRunnable, 300)
+    }
+
+    private fun recoverVideoOutput() {
+        if (!hostForeground || !rendererStarted || currentUrl == null) return
+        if (!surfaceReady || isPictureInPictureActive()) return
+
+        val pipRecovery = pipRecoveryPending
+        if (!pipRecovery && (renderer?.isTv != true || intendedPlayState)) return
+
+        val surface = surfaceView.holder.surface.takeIf { it.isValid } ?: return
+        val recovered = renderer?.recoverVideoOutput(
+            surface = surface,
+            playWhenReady = pipRecovery && intendedPlayState,
+        ) == true
+
+        if (pipRecovery && recovered) {
+            pipRecoveryPending = false
+        }
+    }
+
     fun cleanup() {
-        isWaitingForPiPTransition = false
         pipHandler.removeCallbacksAndMessages(null)
         pipController?.stopPictureInPicture()
         renderer?.stop()
-        pendingSurface?.release()
-        pendingSurface = null
-        surfaceTexture = null
+        hostForeground = false
+        pipRecoveryPending = false
         surfaceReady = false
+        currentUrl = null
+        rendererStarted = false
         renderer = null
     }
 

@@ -17,14 +17,22 @@ import {
 } from "@/lib/downloads"
 import { Ionicons } from "@expo/vector-icons"
 import { Image } from "expo-image"
-import { router } from "expo-router"
+import { Redirect, router } from "expo-router"
 import React from "react"
-import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native"
+import { Alert, Platform, ScrollView, Text, TouchableOpacity, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 const DOWNLOADED_ANIME_PAGE_SIZE = 24
 
 export default function AnimeDownloadsScreen() {
+    if (Platform.isTV) {
+        return <Redirect href="/(app)/(tabs)/(library)" />
+    }
+
+    return <MobileAnimeDownloadsScreen />
+}
+
+function MobileAnimeDownloadsScreen() {
     const insets = useSafeAreaInsets()
     const downloadedAnime = useAllDownloadedAnime()
     const activeDownloads = useActiveAnimeDownloads()

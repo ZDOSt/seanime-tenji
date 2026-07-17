@@ -3,7 +3,7 @@ import { useGetActiveTorrentList, useTorrentClientAction } from "@/api/hooks/tor
 import type { Debrid_TorrentItem, TorrentClient_Torrent } from "@/api/generated/types"
 import { useServerStatus } from "@/atoms/server.atoms"
 import { ProfileSubpageHeader } from "@/components/features/profile/profile-menu"
-import { getDownloadQueueViewState, shouldShowQueueRefreshWarning } from "@/components/features/profile/server-downloads-state"
+import { getDownloadQueueViewState, keepTorrent, shouldShowQueueRefreshWarning } from "@/components/features/profile/server-downloads-state"
 import { SegmentedControl } from "@/components/shared/segmented-control"
 import { useIOSScrollRefreshRateWorkaround } from "@/hooks/use-ios-scroll-refresh-rate-workaround"
 import { useIsServerConnected } from "@/lib/offline"
@@ -41,11 +41,7 @@ export default function ServerDownloadsScreen() {
     const refetchDebrid = debridQuery.refetch
 
     const torrents = React.useMemo(() => {
-        return rawTorrents?.filter(t => {
-            const isComplete = t.progress >= 1
-            const isPausedOrStopped = t.status === "paused" || t.status === "stopped"
-            return !(isComplete && isPausedOrStopped)
-        }) ?? []
+        return rawTorrents?.filter(keepTorrent) ?? []
     }, [rawTorrents])
 
     const debridTorrents = React.useMemo(() => {

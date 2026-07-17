@@ -61,6 +61,12 @@ export {
     useDownloadedEpisodeCount,
 } from "./use-downloads"
 
+export {
+    type DownloadedMedia,
+    downloadedAnimeMedia,
+    downloadedMangaMedia,
+} from "./downloaded-media"
+
 ////////////////////////// Manga chapter downloads
 
 export {

@@ -24,6 +24,7 @@ import { TabFadeView } from "@/components/layout/tab-fade-view"
 import { MediaGenreSelector } from "@/components/shared/media-genre-selector"
 import { OfflineBanner } from "@/components/shared/offline-banner"
 import { Skeleton } from "@/components/ui/skeleton"
+import { TVDiscoverScreen } from "@/components/tv/tv-discover-screen"
 import { COLORS } from "@/constants/colors"
 import { useDevScreenProfiler } from "@/hooks/use-dev-screen-profiler"
 import { useIOSScrollRefreshRateWorkaround } from "@/hooks/use-ios-scroll-refresh-rate-workaround"
@@ -32,10 +33,10 @@ import { getHorizontalMediaCardRowHeight, getHorizontalMediaCardWidth } from "@/
 import { SEARCH_MEDIA_GENRES } from "@/lib/search/search-constants"
 import { cn } from "@/lib/utils"
 import Ionicons from "@expo/vector-icons/Ionicons"
-import { useIsFocused } from "@react-navigation/native"
+import { useIsFocused } from "expo-router"
 import { router } from "expo-router"
 import * as React from "react"
-import { ActivityIndicator, Pressable, Text, useWindowDimensions, View, ViewToken } from "react-native"
+import { ActivityIndicator, Platform, Pressable, Text, useWindowDimensions, View, ViewToken } from "react-native"
 import Animated, { useAnimatedScrollHandler, useSharedValue } from "react-native-reanimated"
 
 type DiscoverMode = "anime" | "manga"
@@ -63,6 +64,14 @@ type DiscoverAnimeSectionItem = (typeof DISCOVER_ANIME_SECTION_ITEMS)[number]
 type DiscoverMangaSectionItem = (typeof DISCOVER_MANGA_SECTION_ITEMS)[number]
 
 export default function DiscoverScreen() {
+    if (Platform.isTV) {
+        return <TVDiscoverScreen />
+    }
+
+    return <MobileDiscoverScreen />
+}
+
+function MobileDiscoverScreen() {
     const isConnected = useIsServerConnected()
     const isFocused = useIsFocused()
     const [mode, setMode] = React.useState<DiscoverMode>("anime")

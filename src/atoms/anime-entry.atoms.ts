@@ -1,4 +1,5 @@
 import { atom } from "jotai"
+import type { AnimeEntryLaunchView } from "@/lib/player/types"
 
 export type AnimeEntryPlaybackIntentKind =
     | "play-local-episode"
@@ -16,6 +17,14 @@ export type AnimeEntryPlaybackIntent = {
 }
 
 export const animeEntryPlaybackIntentAtom = atom<AnimeEntryPlaybackIntent | null>(null)
+
+export type TVReturnFocus = {
+    mediaId: number
+    episodeNumber: number
+    view?: AnimeEntryLaunchView
+}
+
+export const tvReturnFocusAtom = atom<TVReturnFocus | null>(null)
 
 export function createAnimeEntryPlaybackIntent(intent: Omit<AnimeEntryPlaybackIntent, "id">): AnimeEntryPlaybackIntent {
     return {

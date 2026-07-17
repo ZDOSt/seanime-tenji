@@ -1,12 +1,25 @@
 import { getClientIdentity } from "@/api/client/client-identity"
 import type { Anime_Episode, Onlinestream_VideoSource } from "@/api/generated/types"
 import { useGetContinuityWatchHistory } from "@/api/hooks/continuity.hooks"
-import { useGetTorrentstreamSettings, useTorrentstreamStartStream } from "@/api/hooks/torrentstream.hooks"
-import { animeEntryPlaybackIntentAtom, createAnimeEntryPlaybackIntent } from "@/atoms/anime-entry.atoms"
+import {
+    useGetTorrentstreamSettings,
+    useTorrentstreamDropTorrent,
+    useTorrentstreamStartStream,
+    useTorrentstreamStopStream,
+} from "@/api/hooks/torrentstream.hooks"
+import {
+    animeEntryPlaybackIntentAtom,
+    createAnimeEntryPlaybackIntent,
+    tvReturnFocusAtom,
+} from "@/atoms/anime-entry.atoms"
 import { useServerUrl } from "@/atoms/server.atoms"
 import { selectedQualityAtom, selectedServerAtom } from "@/components/features/onlinestream/use-onlinestream-controller"
-import { NEXT_EPISODE_CONFIRM_PROGRESS_THRESHOLD, NEXT_EPISODE_CONFIRM_REMAINING_SECONDS } from "@/components/features/player/constants"
-import { clamp, formatTime, getChapterAtTime, getFillZoomScale, getSourceVideoAspectRatio } from "@/components/features/player/helpers"
+import {
+    NEXT_EPISODE_CONFIRM_PROGRESS_THRESHOLD,
+    NEXT_EPISODE_CONFIRM_REMAINING_SECONDS,
+    TV_CONTROLS_HIDE_DELAY,
+} from "@/components/features/player/constants"
+import { clamp, formatTime, getBackPanel, getChapterAtTime, getFillZoomScale, getSourceVideoAspectRatio } from "@/components/features/player/helpers"
 import { useAutoNextEpisode } from "@/components/features/player/hooks/use-auto-next-episode"
 import { useControlsVisibility } from "@/components/features/player/hooks/use-controls-visibility"
 import { useDoubleTapSeek } from "@/components/features/player/hooks/use-double-tap-seek"
@@ -15,12 +28,15 @@ import { usePlayerGestures } from "@/components/features/player/hooks/use-player
 import { useSideAdjust } from "@/components/features/player/hooks/use-side-adjust"
 import { useSkipData } from "@/components/features/player/hooks/use-skip-data"
 import { useSwipeSeek } from "@/components/features/player/hooks/use-swipe-seek"
+import { useTVLongSeek } from "@/components/features/player/hooks/use-tv-long-seek"
 import { AutoNextCard, NextEpisodeConfirmCard } from "@/components/features/player/player-auto-next"
 import { ControlsOverlay, LockModeOverlay } from "@/components/features/player/player-controls"
-import { CenterTapFeedback, DoubleTapFlash, FastForwardBadge, SideAdjustHUD, SwipeSeekOverlay } from "@/components/features/player/player-overlays"
+import { CenterTapFeedback, DoubleTapFlash, FastForwardBadge, PlayerStatsOverlay, SideAdjustHUD, SwipeSeekOverlay } from "@/components/features/player/player-overlays"
 import { PlayerPanelOverlay } from "@/components/features/player/player-panel"
+import { getBufferedRatio } from "@/components/features/player/progress"
 import type { PlayerPanel } from "@/components/features/player/types"
 import { createGestureRefs, syncGestureRef } from "@/components/features/player/types"
+import { TVPlayerControls, TVPlayerDialog, TVPlayerPanel } from "@/components/tv"
 import { isLocalServer } from "@/lib/downloads"
 import { useIsServerConnected } from "@/lib/offline"
 import {
@@ -40,13 +56,24 @@ import { useMpvPlayer } from "@/lib/player/use-mpv-player"
 import { cn } from "@/lib/utils"
 import { toast } from "@/lib/utils/toast"
 import { useKeepAwake } from "expo-keep-awake"
-import { MpvPlayerView } from "expo-mpv-player"
-import * as NavigationBar from "expo-navigation-bar"
+import { MpvPlayerView, type TechnicalInfo } from "expo-mpv-player"
+import { NavigationBar } from "expo-navigation-bar"
 import { useRouter } from "expo-router"
 import { useAtom, useAtomValue } from "jotai/react"
 import { SkipForward } from "lucide-react-native"
 import React from "react"
-import { ActivityIndicator, Dimensions, Platform, StatusBar, Text, useWindowDimensions, View } from "react-native"
+import {
+    ActivityIndicator,
+    BackHandler,
+    Dimensions,
+    Platform,
+    Pressable as RNPressable,
+    StatusBar,
+    Text,
+    useTVEventHandler,
+    useWindowDimensions,
+    View,
+} from "react-native"
 import { Gesture, GestureDetector, GestureHandlerRootView, Pressable } from "react-native-gesture-handler"
 import Animated, { FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
@@ -70,6 +97,11 @@ function isAssSubtitleCodec(codec?: string) {
 
     const normalizedCodec = codec.trim().toLowerCase()
     return normalizedCodec === "ass" || normalizedCodec === "ssa"
+}
+
+function isTorrentSource(source: MobilePlaybackSource | null | undefined) {
+    return source?.id.startsWith("torrentstream-")
+        || source?.nextEpisodeAction?.startsWith("torrentstream-")
 }
 
 export default function PlayerScreen() {
@@ -98,19 +130,19 @@ function PlayerScreenInner() {
     const cleanupSession = useCleanupPlaybackSession()
     const serverUrl = useServerUrl()
     const isServerConnected = useIsServerConnected()
+    const { mutateAsync: stopTorrentStream } = useTorrentstreamStopStream()
+    const { mutateAsync: dropTorrent } = useTorrentstreamDropTorrent()
 
     useKeepAwake()
     useLandscapeOrientationLock()
 
     React.useEffect(() => {
-        if (Platform.OS === "android") {
-            void NavigationBar.setVisibilityAsync("hidden")
-            void NavigationBar.setBehaviorAsync("overlay-swipe")
+        if (Platform.OS === "android" && !Platform.isTV) {
+            NavigationBar.setHidden(true)
         }
         return () => {
-            if (Platform.OS === "android") {
-                void NavigationBar.setVisibilityAsync("visible")
-                void NavigationBar.setBehaviorAsync("overlay-swipe")
+            if (Platform.OS === "android" && !Platform.isTV) {
+                NavigationBar.setHidden(false)
             }
         }
     }, [])
@@ -125,16 +157,19 @@ function PlayerScreenInner() {
     const source = useActivePlaybackSource()
     const [, setSource] = useAtom(currentPlaybackSourceAtom)
     const [, setPlaybackIntent] = useAtom(animeEntryPlaybackIntentAtom)
+    const [, setReturnFocus] = useAtom(tvReturnFocusAtom)
     const [, setOnlineServer] = useAtom(selectedServerAtom)
     const [, setOnlineQuality] = useAtom(selectedQualityAtom)
     const loadingMessage = useAtomValue(playerLoadingMessageAtom)
     const error = useAtomValue(playerErrorAtom)
     const [nextEpisodePrompt, setNextEpisodePrompt] = React.useState<NextEpisodePrompt | null>(null)
+    const [showExitPrompt, setShowExitPrompt] = React.useState(false)
 
     // player + prefs
     const [prefs, updatePrefs] = usePlayerPreferences()
     const player = useMpvPlayer()
     const { state } = player
+    const [stats, setStats] = React.useState<TechnicalInfo | null>(null)
     const playerSeekTo = player.seekTo
     const playerSetVideoZoom = player.setVideoZoom
     const playerSetSubtitlePosition = player.setSubtitlePosition
@@ -161,6 +196,37 @@ function PlayerScreenInner() {
     }, [windowWidth, windowHeight, state.isPiPActive])
 
     useContinuitySync(player.source, state)
+
+    React.useEffect(() => {
+        if (!prefs.showStats || state.isPiPActive) {
+            setStats(null)
+            return
+        }
+
+        let stopped = false
+        let timer: ReturnType<typeof setTimeout> | null = null
+
+        const read = async () => {
+            try {
+                const next = await player.viewRef.current?.getTechnicalInfo()
+                if (!stopped && next && Object.keys(next).length > 0) setStats(next)
+            }
+            catch {
+                // The player can disappear while this request is crossing the bridge.
+            }
+            finally {
+                if (!stopped) timer = setTimeout(read, 2000)
+            }
+        }
+
+        setStats(null)
+        void read()
+
+        return () => {
+            stopped = true
+            if (timer) clearTimeout(timer)
+        }
+    }, [player.viewRef, prefs.showStats, source?.id, state.isPiPActive])
 
     const { data: watchHistory } = useGetContinuityWatchHistory()
     const resumeAppliedForRef = React.useRef<string | null>(null)
@@ -281,7 +347,10 @@ function PlayerScreenInner() {
 
     const gRef = React.useRef(createGestureRefs())
 
-    const controls = useControlsVisibility(gRef)
+    const controls = useControlsVisibility(
+        gRef,
+        Platform.isTV ? TV_CONTROLS_HIDE_DELAY : undefined,
+    )
 
     // settings panel
     const [panel, setPanel] = React.useState<PlayerPanel | null>(null)
@@ -289,6 +358,20 @@ function PlayerScreenInner() {
         setPanel(null)
         controls.scheduleHide()
     }, [controls.scheduleHide])
+
+    const touchTVSeek = React.useCallback(() => {
+        if (controls.controlsVisible) controls.scheduleHide()
+    }, [controls.controlsVisible, controls.scheduleHide])
+
+    const tvLongSeek = useTVLongSeek({
+        enabled: Platform.isTV
+            && !panel
+            && !nextEpisodePrompt
+            && !showExitPrompt
+            && !state.isPiPActive,
+        seek: player.seekRelative,
+        touch: touchTVSeek,
+    })
 
     // sync gRef every render
     syncGestureRef(gRef, {
@@ -621,12 +704,142 @@ function PlayerScreenInner() {
     })
 
     // navigation
+    const saveReturnFocus = React.useCallback((
+        view = source?.entryView,
+        mediaId = source?.mediaId,
+    ) => {
+        if (!Platform.isTV || !source || !mediaId) return
+        setReturnFocus({
+            mediaId,
+            episodeNumber: source.episodeNumber,
+            view,
+        })
+    }, [setReturnFocus, source])
+
+    const stopTVTorrent = React.useCallback(() => {
+        if (!Platform.isTV || !isTorrentSource(source)) return
+
+        void (async () => {
+            try {
+                await stopTorrentStream()
+            } catch {
+            }
+
+            try {
+                await dropTorrent()
+            } catch {
+            }
+        })()
+    }, [dropTorrent, source, stopTorrentStream])
+
     const handleBack = React.useCallback(() => {
+        saveReturnFocus()
         player.stop()
+        stopTVTorrent()
         if (canGoBack()) back()
-    }, [back, canGoBack, player])
+    }, [back, canGoBack, player, saveReturnFocus, stopTVTorrent])
+
+    useTVEventHandler((event) => {
+        if (!Platform.isTV || !event) return
+        if (event.eventType === "menu") return
+
+        if (event.eventType === "playPause") {
+            player.togglePlayPause()
+            controls.showControls()
+            return
+        }
+
+        if (event.eventType === "longLeft") {
+            if (event.eventKeyAction === 0) tvLongSeek.start(-1)
+            if (event.eventKeyAction === 1) tvLongSeek.stop()
+            return
+        }
+        if (event.eventType === "longRight") {
+            if (event.eventKeyAction === 0) tvLongSeek.start(1)
+            if (event.eventKeyAction === 1) tvLongSeek.stop()
+            return
+        }
+
+        if (panel || nextEpisodePrompt || showExitPrompt) return
+
+        if (event.eventKeyAction === 0) return
+
+        if (!controls.controlsVisible) {
+            if (event.eventType === "left") {
+                player.seekRelative(-prefs.buttonSeekSec)
+                controls.showControls()
+                return
+            }
+            if (event.eventType === "right") {
+                player.seekRelative(prefs.buttonSeekSec)
+                controls.showControls()
+                return
+            }
+            if (
+                event.eventType === "up"
+                || event.eventType === "down"
+                || event.eventType === "select"
+                || event.eventType === "enter"
+            ) {
+                controls.showControls()
+            }
+            return
+        }
+
+        if (
+            event.eventType === "left"
+            || event.eventType === "right"
+            || event.eventType === "up"
+            || event.eventType === "down"
+        ) {
+            controls.scheduleHide()
+        }
+    })
+
+    React.useEffect(() => {
+        if (!Platform.isTV) return
+
+        const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+            if (showExitPrompt) {
+                setShowExitPrompt(false)
+                return true
+            }
+            if (panel) {
+                const backPanel = getBackPanel(panel)
+                if (backPanel) {
+                    setPanel(backPanel)
+                } else {
+                    closeSettings()
+                }
+                return true
+            }
+            if (nextEpisodePrompt) {
+                setNextEpisodePrompt(null)
+                return true
+            }
+            if (controls.controlsVisible) {
+                controls.clearHideTimer()
+                controls.setControlsVisible(false)
+                return true
+            }
+            setShowExitPrompt(true)
+            return true
+        })
+
+        return () => sub.remove()
+    }, [
+        closeSettings,
+        controls.clearHideTimer,
+        controls.controlsVisible,
+        controls.setControlsVisible,
+        handleBack,
+        nextEpisodePrompt,
+        panel,
+        showExitPrompt,
+    ])
 
     const closePlayerToEntry = React.useCallback((view: MobilePlaybackSource["entryView"], mediaId: number) => {
+        saveReturnFocus(view, mediaId)
         player.stop()
         if (canGoBack()) {
             back()
@@ -637,7 +850,7 @@ function PlayerScreenInner() {
             pathname: "/(app)/entry/anime/[id]",
             params: { id: String(mediaId), initialView: view },
         })
-    }, [back, canGoBack, player, replace])
+    }, [back, canGoBack, player, replace, saveReturnFocus])
 
     // next episode logic
     const canPlayNext = React.useMemo(() => {
@@ -867,6 +1080,7 @@ function PlayerScreenInner() {
     // display calculations
     const displayTime = swipeSeek.swipeSeeking?.currentTime ?? seekingDisplay ?? state.currentTime
     const progressRatio = state.duration > 0 ? clamp(displayTime / state.duration, 0, 1) : 0
+    const bufferedRatio = getBufferedRatio(state.currentTime, state.duration, state.cacheSeconds)
     const isPiPActive = state.isPiPActive
     const isSeeking = seekingDisplay !== null || swipeSeek.swipeSeeking !== null
     const seekingChapter = isSeeking ? getChapterAtTime(chapters, displayTime) : undefined
@@ -925,9 +1139,13 @@ function PlayerScreenInner() {
                 <StatusBar hidden />
                 <Text className="text-red-400 text-lg font-semibold mb-2">Playback Error</Text>
                 <Text className="text-white/70 text-center mb-6">{error}</Text>
-                <Pressable onPress={handleBack} className="bg-white/10 px-6 py-3 rounded-xl">
+                <RNPressable
+                    onPress={handleBack}
+                    hasTVPreferredFocus={Platform.isTV}
+                    className="rounded-xl border-2 border-transparent bg-white/10 px-6 py-3 focus:border-brand-100"
+                >
                     <Text className="text-white font-medium">Go Back</Text>
-                </Pressable>
+                </RNPressable>
             </View>
         )
     }
@@ -977,81 +1195,173 @@ function PlayerScreenInner() {
                     </View>
                 )}
 
-
-
-                <GestureDetector gesture={screenGesture}>
-                    <Animated.View
-                        collapsable={false}
-                        style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+                {prefs.showStats && !isPiPActive ? (
+                    <PlayerStatsOverlay
+                        info={stats}
+                        top={Math.max(insets.top + 16, Platform.isTV ? 32 : 16)}
+                        right={Math.max(insets.right + 16, Platform.isTV ? 32 : 16)}
                     />
-                </GestureDetector>
+                ) : null}
 
 
-                {!isPiPActive && (
-                    <ControlsOverlay
-                        visible={controls.controlsVisible && !controls.controlsLocked}
-                        source={source}
-                        state={state}
-                        insets={insets}
-                        zoomMode={zoomMode}
-                        panel={panel}
-                        seekBarGesture={seekBarGesture}
-                        onSeekBarLayout={onSeekBarLayout}
-                        seekBarTrackStyle={seekBarTrackStyle}
-                        seekBarFillStyle={seekBarFillStyle}
-                        seekBarThumbStyle={seekBarThumbStyle}
-                        seekBarGlowStyle={seekBarGlowStyle}
-                        chapterMarkers={chapterMarkers}
-                        progressRatio={progressRatio}
-                        displayTime={displayTime}
-                        isSeeking={isSeeking}
-                        seekingChapter={seekingChapter}
-                        onBack={handleBack}
-                        onTogglePlayPause={player.togglePlayPause}
-                        scheduleHide={controls.scheduleHide}
-                        clearHideTimer={controls.clearHideTimer}
-                        setPanel={setPanel}
-                        canPlayNext={canPlayNext}
-                        onManualNextEpisode={handleManualNextEpisode}
-                        chapters={chapters}
-                        seekBarProgress={seekBarProgress}
-                        onLockScreen={controls.lockScreen}
-                        onSeekRelative={player.seekRelative}
-                        buttonSeekSec={prefs.buttonSeekSec}
-                    />
+
+                {!Platform.isTV && (
+                    <GestureDetector gesture={screenGesture}>
+                        <Animated.View
+                            collapsable={false}
+                            style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+                        />
+                    </GestureDetector>
                 )}
 
 
-                {controls.controlsVisible && controls.controlsLocked && !isPiPActive && (
+                {!isPiPActive && (
+                    Platform.isTV ? (
+                        <TVPlayerControls
+                            visible={
+                                controls.controlsVisible
+                                && !controls.controlsLocked
+                                && !panel
+                                && !nextEpisodePrompt
+                                && !showExitPrompt
+                                && autoNext.autoNextCountdown === null
+                            }
+                            focusWhenHidden={
+                                !panel
+                                && !nextEpisodePrompt
+                                && !showExitPrompt
+                                && autoNext.autoNextCountdown === null
+                            }
+                            source={source}
+                            state={state}
+                            chapters={chapters}
+                            displayTime={displayTime}
+                            progress={progressRatio}
+                            buffered={bufferedRatio}
+                            longSeekVisible={tvLongSeek.visible}
+                            seekSec={prefs.buttonSeekSec}
+                            canPlayNext={canPlayNext}
+                            canShowEpisodes={(source?.episodes?.length ?? 0) > 1}
+                            skipLabel={showSkipIntro ? "Skip intro" : showSkipOutro ? "Skip outro" : undefined}
+                            onSkip={(showSkipIntro || showSkipOutro) ? () => {
+                                const target = showSkipIntro ? skipData.op!.interval.endTime : skipData.ed!.interval.endTime
+                                playerSeekTo(target)
+                                toast.info(showSkipIntro ? "Skipped opening intro" : "Skipped ending outro")
+                            } : undefined}
+                            onTogglePlayPause={player.togglePlayPause}
+                            onSeekRelative={player.seekRelative}
+                            onPlayNext={handleManualNextEpisode}
+                            onOpenEpisodes={() => {
+                                controls.clearHideTimer()
+                                setPanel("episodes")
+                            }}
+                            onOpenTracks={() => {
+                                controls.clearHideTimer()
+                                setPanel("audio-subtitles")
+                            }}
+                            onOpenSettings={() => {
+                                controls.clearHideTimer()
+                                setPanel("main")
+                            }}
+                            onExit={() => {
+                                controls.clearHideTimer()
+                                setShowExitPrompt(true)
+                            }}
+                            onShowControls={controls.showControls}
+                            onControlFocus={controls.scheduleHide}
+                            onControlAction={controls.scheduleHide}
+                        />
+                    ) : (
+                        <ControlsOverlay
+                            visible={controls.controlsVisible && !controls.controlsLocked}
+                            source={source}
+                            state={state}
+                            insets={insets}
+                            zoomMode={zoomMode}
+                            panel={panel}
+                            seekBarGesture={seekBarGesture}
+                            onSeekBarLayout={onSeekBarLayout}
+                            seekBarTrackStyle={seekBarTrackStyle}
+                            seekBarFillStyle={seekBarFillStyle}
+                            seekBarThumbStyle={seekBarThumbStyle}
+                            seekBarGlowStyle={seekBarGlowStyle}
+                            chapterMarkers={chapterMarkers}
+                            progressRatio={progressRatio}
+                            bufferedRatio={bufferedRatio}
+                            displayTime={displayTime}
+                            isSeeking={isSeeking}
+                            seekingChapter={seekingChapter}
+                            onBack={handleBack}
+                            onTogglePlayPause={player.togglePlayPause}
+                            scheduleHide={controls.scheduleHide}
+                            clearHideTimer={controls.clearHideTimer}
+                            setPanel={setPanel}
+                            canPlayNext={canPlayNext}
+                            onManualNextEpisode={handleManualNextEpisode}
+                            chapters={chapters}
+                            seekBarProgress={seekBarProgress}
+                            onLockScreen={controls.lockScreen}
+                            onSeekRelative={player.seekRelative}
+                            buttonSeekSec={prefs.buttonSeekSec}
+                        />
+                    )
+                )}
+
+
+                {!Platform.isTV && controls.controlsVisible && controls.controlsLocked && !isPiPActive && (
                     <LockModeOverlay insets={insets} onUnlock={controls.handleUnlockScreen} />
                 )}
 
 
                 {autoNext.autoNextCountdown !== null && !isPiPActive && canAutoAdvance && (
-                    <AutoNextCard
-                        countdown={autoNext.autoNextCountdown}
-                        nextEpisodeLabel={nextEpisodeLabel}
-                        controlsVisible={controls.controlsVisible}
-                        controlsLocked={controls.controlsLocked}
-                        padR={padR}
-                        insets={insets}
-                        onCancel={autoNext.cancelAutoNext}
-                        onPlayNow={autoNext.triggerAutoNext}
-                    />
+                    Platform.isTV ? (
+                        <TVPlayerDialog
+                            open
+                            eyebrow="Up next"
+                            title={nextEpisodeLabel}
+                            text={`Playing automatically in ${autoNext.autoNextCountdown}s`}
+                            confirmLabel="Play now"
+                            onCancel={autoNext.cancelAutoNext}
+                            onConfirm={autoNext.triggerAutoNext}
+                        />
+                    ) : (
+                        <AutoNextCard
+                            countdown={autoNext.autoNextCountdown}
+                            nextEpisodeLabel={nextEpisodeLabel}
+                            controlsVisible={controls.controlsVisible}
+                            controlsLocked={controls.controlsLocked}
+                            padR={padR}
+                            insets={insets}
+                            onCancel={autoNext.cancelAutoNext}
+                            onPlayNow={autoNext.triggerAutoNext}
+                        />
+                    )
                 )}
 
                 {nextEpisodePrompt && !isPiPActive && (
-                    <NextEpisodeConfirmCard
-                        title={nextEpisodePrompt.title}
-                        description={nextEpisodePrompt.description}
-                        confirmLabel={nextEpisodePrompt.confirmLabel}
-                        insets={insets}
-                        onCancel={dismissNextEpisodePrompt}
-                        onConfirm={confirmNextEpisodePrompt}
-                    />
+                    Platform.isTV ? (
+                        <TVPlayerDialog
+                            open
+                            eyebrow="Next episode"
+                            title={nextEpisodePrompt.title}
+                            text={nextEpisodePrompt.description}
+                            confirmLabel={nextEpisodePrompt.confirmLabel}
+                            onCancel={dismissNextEpisodePrompt}
+                            onConfirm={confirmNextEpisodePrompt}
+                        />
+                    ) : (
+                        <NextEpisodeConfirmCard
+                            title={nextEpisodePrompt.title}
+                            description={nextEpisodePrompt.description}
+                            confirmLabel={nextEpisodePrompt.confirmLabel}
+                            insets={insets}
+                            onCancel={dismissNextEpisodePrompt}
+                            onConfirm={confirmNextEpisodePrompt}
+                        />
+                    )
                 )}
 
-                {!isPiPActive && !controls.controlsLocked && (showSkipIntro || showSkipOutro) && (
+                {!Platform.isTV && !isPiPActive && !controls.controlsLocked && (showSkipIntro || showSkipOutro) && (
                     <Animated.View
                         entering={FadeIn.duration(200)}
                         exiting={FadeOut.duration(150)}
@@ -1086,11 +1396,11 @@ function PlayerScreenInner() {
                     </Animated.View>
                 )}
 
-                {isFastForwarding && !isPiPActive && (
+                {!Platform.isTV && isFastForwarding && !isPiPActive && (
                     <FastForwardBadge speed={prefs.longPressFastForwardSpeed} />
                 )}
 
-                {swipeSeek.swipeSeeking && !isPiPActive && (
+                {!Platform.isTV && swipeSeek.swipeSeeking && !isPiPActive && (
                     <SwipeSeekOverlay
                         swipeSeeking={swipeSeek.swipeSeeking}
                         duration={state.duration}
@@ -1098,7 +1408,7 @@ function PlayerScreenInner() {
                     />
                 )}
 
-                {!isPiPActive && (
+                {!Platform.isTV && !isPiPActive && (
                     <DoubleTapFlash
                         side={doubleTap.doubleTapSide}
                         amount={doubleTap.doubleTapAmount}
@@ -1107,11 +1417,11 @@ function PlayerScreenInner() {
                     />
                 )}
 
-                {centerTapFeedback && !isPiPActive && (
+                {!Platform.isTV && centerTapFeedback && !isPiPActive && (
                     <CenterTapFeedback feedback={centerTapFeedback} />
                 )}
 
-                {sideAdjust.sideAdjustFeedbackKind && !isPiPActive && (
+                {!Platform.isTV && sideAdjust.sideAdjustFeedbackKind && !isPiPActive && (
                     <SideAdjustHUD
                         kind={sideAdjust.sideAdjustFeedbackKind}
                         progress={sideAdjust.sideAdjustProgress}
@@ -1129,38 +1439,82 @@ function PlayerScreenInner() {
                 )}
 
                 {panel && !isPiPActive && (
-                    <PlayerPanelOverlay
-                        panel={panel}
-                        onNavigate={setPanel}
-                        onClose={closeSettings}
-                        insets={insets}
-                        state={state}
-                        prefs={prefs}
-                        updatePrefs={updatePrefs}
-                        onSetSpeed={handleSetSpeed}
-                        onSubDelayChange={handleSubDelayChange}
-                        onSubDelayReset={handleSubDelayReset}
-                        onAudioDelayChange={handleAudioDelayChange}
-                        onAudioDelayReset={handleAudioDelayReset}
-                        onSetSubFontSize={handleSubFontSize}
-                        onSetAudioTrack={player.setAudioTrack}
-                        onSetSubtitleTrack={player.setSubtitleTrack}
-                        onAddExternalSubtitle={player.addSubtitleFile ? (url: string) => player.addSubtitleFile(url, true) : undefined}
-                        anilistId={source?.mediaId}
-                        wyzieApiKey={prefs.wyzieApiKey}
-                        onSaveWyzieApiKey={(value) => updatePrefs({ wyzieApiKey: value })}
-                        onStartPiP={handleStartPiP}
-                        onToggleAutoNext={() => updatePrefs({ autoNextEpisode: !prefs.autoNextEpisode })}
-                        onToggleCenterTapPlayPause={() => updatePrefs({ centerTapPlayPause: !prefs.centerTapPlayPause })}
-                        onToggleSideSwipeControls={() => updatePrefs({ sideSwipeBrightnessVolume: !prefs.sideSwipeBrightnessVolume })}
-                        onToggleAutoSkipOpEd={() => updatePrefs({ autoSkipOpEd: !prefs.autoSkipOpEd })}
-                        onLockScreen={controls.lockScreen}
-                        episodes={source?.episodes}
-                        currentEpisodeNumber={source?.episodeNumber}
-                        onPlayEpisode={handleEpisodeSelect}
-                        videoSources={source?.onlineSources}
-                        videoSource={source?.onlineSource}
-                        onSetVideoSource={handleVideoSource}
+                    Platform.isTV ? (
+                        <TVPlayerPanel
+                            panel={panel}
+                            onNavigate={setPanel}
+                            onClose={closeSettings}
+                            state={state}
+                            prefs={prefs}
+                            updatePrefs={updatePrefs}
+                            onSetSpeed={handleSetSpeed}
+                            onSubDelayChange={handleSubDelayChange}
+                            onSubDelayReset={handleSubDelayReset}
+                            onAudioDelayChange={handleAudioDelayChange}
+                            onAudioDelayReset={handleAudioDelayReset}
+                            onSetSubFontSize={handleSubFontSize}
+                            onSetAudioTrack={player.setAudioTrack}
+                            onSetSubtitleTrack={player.setSubtitleTrack}
+                            onToggleAutoNext={() => updatePrefs({ autoNextEpisode: !prefs.autoNextEpisode })}
+                            onToggleAutoSkipOpEd={() => updatePrefs({ autoSkipOpEd: !prefs.autoSkipOpEd })}
+                            episodes={source?.episodes}
+                            currentEpisodeNumber={source?.episodeNumber}
+                            onPlayEpisode={handleEpisodeSelect}
+                            videoSources={source?.onlineSources}
+                            videoSource={source?.onlineSource}
+                            onSetVideoSource={handleVideoSource}
+                        />
+                    ) : (
+                        <PlayerPanelOverlay
+                            panel={panel}
+                            onNavigate={setPanel}
+                            onClose={closeSettings}
+                            insets={insets}
+                            state={state}
+                            prefs={prefs}
+                            updatePrefs={updatePrefs}
+                            onSetSpeed={handleSetSpeed}
+                            onSubDelayChange={handleSubDelayChange}
+                            onSubDelayReset={handleSubDelayReset}
+                            onAudioDelayChange={handleAudioDelayChange}
+                            onAudioDelayReset={handleAudioDelayReset}
+                            onSetSubFontSize={handleSubFontSize}
+                            onSetAudioTrack={player.setAudioTrack}
+                            onSetSubtitleTrack={player.setSubtitleTrack}
+                            onAddExternalSubtitle={player.addSubtitleFile ? (url: string) => player.addSubtitleFile(url, true) : undefined}
+                            anilistId={source?.mediaId}
+                            wyzieApiKey={prefs.wyzieApiKey}
+                            onSaveWyzieApiKey={(value) => updatePrefs({ wyzieApiKey: value })}
+                            onStartPiP={handleStartPiP}
+                            onToggleAutoNext={() => updatePrefs({ autoNextEpisode: !prefs.autoNextEpisode })}
+                            onToggleCenterTapPlayPause={() => updatePrefs({ centerTapPlayPause: !prefs.centerTapPlayPause })}
+                            onToggleSideSwipeControls={() => updatePrefs({ sideSwipeBrightnessVolume: !prefs.sideSwipeBrightnessVolume })}
+                            onToggleAutoSkipOpEd={() => updatePrefs({ autoSkipOpEd: !prefs.autoSkipOpEd })}
+                            onToggleStats={() => updatePrefs({ showStats: !prefs.showStats })}
+                            onLockScreen={controls.lockScreen}
+                            episodes={source?.episodes}
+                            currentEpisodeNumber={source?.episodeNumber}
+                            onPlayEpisode={handleEpisodeSelect}
+                            videoSources={source?.onlineSources}
+                            videoSource={source?.onlineSource}
+                            onSetVideoSource={handleVideoSource}
+                        />
+                    )
+                )}
+
+                {Platform.isTV && (
+                    <TVPlayerDialog
+                        open={showExitPrompt}
+                        eyebrow="Stop playback"
+                        title="Leave the player?"
+                        text={`Stop playing “${source?.media?.title?.userPreferred ?? source?.media?.title?.english ?? "this episode"}”?`}
+                        confirmLabel="Stop"
+                        danger
+                        onCancel={() => {
+                            setShowExitPrompt(false)
+                            controls.showControls()
+                        }}
+                        onConfirm={handleBack}
                     />
                 )}
             </View>

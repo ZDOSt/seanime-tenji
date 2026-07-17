@@ -3,6 +3,7 @@ import { getAllDownloadedAnime } from "@/lib/downloads/download-store"
 import { QueryClient } from "@tanstack/react-query"
 import { createMMKV } from "react-native-mmkv"
 import { getAllDownloadedManga } from "./downloads"
+import { shouldPersistQuery } from "./query-persistence-policy"
 
 /**
  * - On each successful query, the response JSON is written to MMKV under a stable key
@@ -141,7 +142,8 @@ export function setupQueryPersistence(queryClient: QueryClient): void {
         if (
             event.type === "updated" &&
             event.action.type === "success" &&
-            event.query.state.data !== undefined
+            event.query.state.data !== undefined &&
+            shouldPersistQuery(event.query.options)
         ) {
             persistQueryData(event.query.queryKey, event.query.state.data)
         }

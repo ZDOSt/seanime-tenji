@@ -38,6 +38,7 @@ class ExpoMpvPlayerModule : Module() {
 
         OnActivityEntersBackground {
             isActivityInForeground = false
+            activeView?.setHostForeground(false)
             val inPiP = activeView?.isPictureInPictureActive() == true
             if (!inPiP) {
                 activeView?.pause()
@@ -51,6 +52,7 @@ class ExpoMpvPlayerModule : Module() {
                 restoreExpoDevMenuOverlay(activity)
             }
             activeView?.dispatchPictureInPictureState(activeView?.isPictureInPictureActive() == true)
+            activeView?.onHostResume()
         }
 
         // orientation stubs (no-op on Android, use expo-screen-orientation)
@@ -112,7 +114,13 @@ class ExpoMpvPlayerModule : Module() {
 
             OnViewDidUpdateProps { view ->
                 activeView = view
+                view.setHostForeground(isActivityInForeground)
                 view.applyPendingProps()
+            }
+
+            OnViewDestroys { view ->
+                if (activeView === view) activeView = null
+                view.cleanup()
             }
 
             // playback
