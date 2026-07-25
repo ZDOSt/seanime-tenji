@@ -3,11 +3,11 @@ import { hashServerPassword } from "@/api/client/server-auth"
 import { API_ENDPOINTS } from "@/api/generated/endpoints"
 import { useSetServerUrl } from "@/atoms/server.atoms"
 import { useServerUrl, useSetServerAuthToken, useSetServerStatus } from "@/atoms/server.atoms"
+import { TVServerSetup } from "@/components/tv/tv-server-setup"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { TVServerSetup } from "@/components/tv/tv-server-setup"
 import { IMAGES } from "@/constants/images"
 import { logger } from "@/lib/utils/logger"
 import { toast } from "@/lib/utils/toast"
@@ -21,7 +21,7 @@ export default function Screen() {
     const setServerStatus = useSetServerStatus()
     const setServerAuthToken = useSetServerAuthToken()
 
-    const [inputValue, setInputValue] = React.useState(currentServerUrl ?? "http://192.168.129.14:43000")
+    const [inputValue, setInputValue] = React.useState(currentServerUrl ?? "")
     const [passwordValue, setPasswordValue] = React.useState("")
     const [passwordRequired, setPasswordRequired] = React.useState(false)
     const [isSubmitting, setIsSubmitting] = React.useState(false)
