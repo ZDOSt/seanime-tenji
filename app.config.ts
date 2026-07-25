@@ -3,7 +3,7 @@ import type { ConfigContext, ExpoConfig } from "expo/config"
 export default ({ config }: ConfigContext): ExpoConfig => {
     const isTV = process.env.EXPO_TV === "1"
     const isTVDev = isTV && process.env.SEANIME_TV_DEV === "1"
-    const version = "0.2.0"
+    const version = "0.3.0"
     const otaChannel = isTV ? "stable-tv" : "stable"
     const otaUrl = isTV
         ? "https://seanime.app/api/ota/tv/manifest"
@@ -31,7 +31,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             },
         },
         ios: {
-            buildNumber: "22",
+            buildNumber: "23",
             appleTeamId: process.env.EXPO_APPLE_TEAM_ID || "",
             supportsTablet: true,
             bundleIdentifier: process.env.EXPO_IOS_BUNDLE_ID || "app.seanime.tenji",
@@ -64,7 +64,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         },
         android: {
             jsEngine: "hermes",
-            versionCode: 22,
+            versionCode: 23,
             usesCleartextTraffic: true,
             adaptiveIcon: {
                 foregroundImage: "./src/assets/images/adaptive-icon.png",
