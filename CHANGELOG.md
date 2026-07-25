@@ -2,14 +2,6 @@
 
 All notable changes to this project will be documented in this file.
 
-## v0.3.0
-
-- 🎉 New Releases: AndroidTV and tvOS
-- ⚡️ Player: Buffered progress in seek bar
-- ⚡️ Player (Android): SubRip subtitles fallback font
-- ⚡️ Player: Playback stats
-- ⬆️ Upgraded to React Native 0.85 / Expo SDK 56
-
 ## v0.2.0
 
 - ⚡️ UI: Handling of larger screen sizes
