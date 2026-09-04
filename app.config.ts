@@ -4,26 +4,28 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     const isTV = process.env.EXPO_TV === "1"
     const isTVDev = isTV && process.env.SEANIME_TV_DEV === "1"
     const version = "0.3.0"
-    const otaChannel = isTV ? "stable-tv" : "stable"
-    const otaUrl = isTV
-        ? "https://seanime.app/api/ota/tv/manifest"
-        : "https://seanime.app/api/ota/manifest"
+    const androidPackage = process.env.EXPO_ANDROID_PACKAGE || (isTV ? "app.zdost.seanime.tenji.tv" : "app.zdost.seanime.tenji")
+    const iosBundleIdentifier = process.env.EXPO_IOS_BUNDLE_ID || "app.zdost.seanime.tenji"
+    const otaChannel = process.env.SEANIME_OTA_CHANNEL || (isTV ? "stable-tv" : "stable")
+    const otaUrl = process.env.SEANIME_OTA_URL
+    const otaEnabled = process.env.SEANIME_ENABLE_OTA === "1" && !!otaUrl && !isTVDev
+    const appName = process.env.SEANIME_APP_NAME || (isTV ? "Seanime ZDOST TV" : "Seanime ZDOST")
 
     return {
         ...config,
-        name: isTV ? "Seanime Tenji" : "Seanime",
+        name: appName,
         slug: "seanime-app",
         version,
         orientation: isTV ? "default" : "portrait",
         icon: "./src/assets/images/icon.png",
         scheme: "seanime",
         userInterfaceStyle: "automatic",
-        runtimeVersion: isTV ? `${version}-tv` : { policy: "appVersion" },
-        updates: isTVDev ? {
+        runtimeVersion: `${version}-zdost${isTV ? "-tv" : ""}`,
+        updates: !otaEnabled ? {
             enabled: false,
         } : {
             enabled: true,
-            url: otaUrl,
+            url: otaUrl!,
             checkAutomatically: "NEVER",
             fallbackToCacheTimeout: 0,
             requestHeaders: {
@@ -34,7 +36,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             buildNumber: "23",
             appleTeamId: process.env.EXPO_APPLE_TEAM_ID || "",
             supportsTablet: true,
-            bundleIdentifier: process.env.EXPO_IOS_BUNDLE_ID || "app.seanime.tenji",
+            bundleIdentifier: iosBundleIdentifier,
             infoPlist: {
                 NSLocalNetworkUsageDescription: "Seanime needs local network access to connect to your server on your home network.",
                 UIBackgroundModes: [
@@ -73,7 +75,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             permissions: [
                 "WRITE_SETTINGS",
             ],
-            package: "app.seanime.tenji",
+            package: androidPackage,
         } as any,
         plugins: [
             [

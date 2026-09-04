@@ -135,6 +135,7 @@ const serverLocalInvalidationKeys = [
 const settingsChangedKeys = [
     API_ENDPOINTS.SETTINGS.GetSettings.key,
     API_ENDPOINTS.STATUS.GetStatus.key,
+    API_ENDPOINTS.STATUS.GetHomeItems.key,
     API_ENDPOINTS.MEDIASTREAM.GetMediastreamSettings.key,
     API_ENDPOINTS.TORRENTSTREAM.GetTorrentstreamSettings.key,
     API_ENDPOINTS.DEBRID.GetDebridSettings.key,

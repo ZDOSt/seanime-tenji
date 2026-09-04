@@ -1,9 +1,12 @@
 import { useCurrentUser, useServerUrl } from "@/atoms/server.atoms"
+import { ExternalPlayerPickerSheet } from "@/components/features/player/external-player-picker-sheet"
 import { TVConfirmDrawer } from "@/components/tv/tv-confirm-drawer"
 import { usePreferredFocus, useTVFocus } from "@/components/tv/tv-focus"
 import { TV, tvSize } from "@/components/tv/tv-scale"
 import { useServerConnectionState } from "@/lib/offline"
 import { checkForOtaUpdateManually, getOtaVersionInfo } from "@/lib/ota/updates"
+import { getPlatformExternalPlayers } from "@/lib/player/external-players"
+import { getPlayerPreferences } from "@/lib/player/player-preferences"
 import { toast } from "@/lib/utils/toast"
 import Ionicons from "@expo/vector-icons/Ionicons"
 import { Image } from "expo-image"
@@ -157,6 +160,12 @@ function focusRow(ref: React.RefObject<RowRef | null>) {
     })
 }
 
+function playerLabel(template: string | null) {
+    if (!template) return "Built-in player"
+
+    return getPlatformExternalPlayers().find(player => player.urlTemplate === template)?.name ?? "Custom player"
+}
+
 function Divider() {
     return (
         <View
@@ -176,9 +185,14 @@ export function TVSettingsScreen() {
     const [confirm, setConfirm] = React.useState<Confirm>(null)
     const [clearing, setClearing] = React.useState(false)
     const [checkingOta, setCheckingOta] = React.useState(false)
+    const [playerPickerOpen, setPlayerPickerOpen] = React.useState(false)
+    const [externalPlayerLabel, setExternalPlayerLabel] = React.useState(() =>
+        playerLabel(getPlayerPreferences().externalPlayerTemplate),
+    )
     const version = React.useMemo(() => getOtaVersionInfo(), [])
     const cacheRef = React.useRef<RowRef>(null)
     const serverRef = React.useRef<RowRef>(null)
+    const playerRef = React.useRef<RowRef>(null)
 
     const clearCache = React.useCallback(() => {
         if (clearing) return
@@ -210,6 +224,14 @@ export function TVSettingsScreen() {
         void checkForOtaUpdateManually()
             .finally(() => setCheckingOta(false))
     }, [checkingOta])
+
+    const handlePlayerPickerChange = React.useCallback((open: boolean) => {
+        setPlayerPickerOpen(open)
+        if (!open) {
+            setExternalPlayerLabel(playerLabel(getPlayerPreferences().externalPlayerTemplate))
+            focusRow(playerRef)
+        }
+    }, [])
 
     const connectionLabel = connection === "connected"
         ? "Connected to server"
@@ -334,8 +356,23 @@ export function TVSettingsScreen() {
                         />
                     </SectionCard>
 
+                    <SectionCard title="Player">
+                        <SettingsRow
+                            ref={playerRef}
+                            label="External Player"
+                            detail={externalPlayerLabel}
+                            icon="play-circle-outline"
+                            onPress={() => setPlayerPickerOpen(true)}
+                        />
+                    </SectionCard>
+
                 </View>
             </ScrollView>
+
+            <ExternalPlayerPickerSheet
+                open={playerPickerOpen}
+                onOpenChange={handlePlayerPickerChange}
+            />
 
             <TVConfirmDrawer
                 open={confirm === "cache"}

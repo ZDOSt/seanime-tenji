@@ -41,12 +41,36 @@ Seanime Tenji is a mobile and TV **client app** for your Seanime media server wi
 - **Playback Options**: Support for server local files, torrent, debrid and online streaming
 - **Manga Reader**: Read and download chapters on iOS and Android
 - **Download locally**: Download anime episodes and manga chapters to your mobile device
-- **External Player Support**: Support for opening media in mobile external players such as VLC, MX Player, Outplayer, etc.
+- **External Player Support**: Support for opening media in Android and iOS external players such as VLC, MX Player, Outplayer, etc.
 - **Offline Mode**: Access your downloaded anime episodes and manga chapters without an internet connection
 
 ## Development
 
 Seanime Tenji is built with React Native and Expo. Detailed guides on setup and local development workflows can be found in the [Contributing Guide](CONTRIBUTING.md).
+
+### ZDOST custom build
+
+This fork uses private application identifiers and has official Expo OTA updates disabled by default, so it can be installed alongside the official app without being replaced by upstream updates. The phone build uses `app.zdost.seanime.tenji`; the Android TV build uses `app.zdost.seanime.tenji.tv`, so both variants can be installed independently.
+
+On TV, the Anime home screen reads Seanime's `/api/v1/status/home-items` layout from the connected server. Continue-watching, library, local-library, trending, recently-aired, missed-sequel, centered-title, and anime-carousel items are supported; manga, calendar, and statistics item types are skipped on this anime surface.
+
+After installing Android Studio (including an Android SDK and Java), build a release APK with:
+
+```powershell
+npm install
+npx expo run:android --variant release
+```
+
+Build the Android TV variant with:
+
+```powershell
+$env:EXPO_TV = "1"
+npx expo run:android --variant release
+```
+
+For one APK that is recognized by both Android phones and Android TV, use the TV-configured command above. `androidTVRequired` remains false, so the TV-configured APK keeps mobile support while adding the TV launcher metadata and remote-friendly orientation. The plain command produces a phone-configured build.
+
+Private OTA updates can be enabled only when both `SEANIME_ENABLE_OTA=1` and `SEANIME_OTA_URL` are supplied. The package identifiers can be overridden with `EXPO_ANDROID_PACKAGE` and `EXPO_IOS_BUNDLE_ID` when producing a differently named build.
 
 ---
 

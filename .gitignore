@@ -94,6 +94,7 @@ build/
 credentials/
 /android/
 /ios/
+/artifacts/
 TODO.md
 docs/
 scripts/
