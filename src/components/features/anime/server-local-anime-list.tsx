@@ -22,7 +22,7 @@ function ServerEpisodeCountOverlay({ count }: { count: number }) {
     )
 }
 
-export function ServerLocalAnimeList() {
+export function ServerLocalAnimeList({ title = "On Seanime Server" }: { title?: string }) {
     const records = useServerLocalAnimeRecords()
     const { width: screenWidth } = useWindowDimensions()
     const cardWidth = React.useMemo(() => getHorizontalMediaCardWidth(screenWidth), [screenWidth])
@@ -78,7 +78,7 @@ export function ServerLocalAnimeList() {
         >
             <View className="flex-row items-center justify-between">
                 <Text className="p-4 text-xl font-bold text-foreground">
-                    On Seanime Server{" "}
+                    {title}{" "}
                     <Text className="ml-4 text-xl text-muted-foreground">{visibleRecords.length}</Text>
                 </Text>
             </View>
