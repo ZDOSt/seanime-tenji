@@ -2,6 +2,9 @@
 
 Custom Tenji client builds for connecting to a Seanime media server.
 
+> [!IMPORTANT]
+> Seanime Tenji does not provide, host, or distribute any media content. Users are responsible for obtaining media through legal means and complying with their local laws.
+
 ## Custom builds
 
 - Separate application IDs allow the phone and Android TV builds to coexist:
