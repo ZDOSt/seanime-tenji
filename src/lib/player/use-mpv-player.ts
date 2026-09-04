@@ -13,7 +13,7 @@ import type {
     SubtitleHorizontalAlignment,
     SubtitleVerticalAlignment,
 } from "expo-mpv-player"
-import { useAtomValue } from "jotai/react"
+import { useAtomValue, useSetAtom } from "jotai/react"
 import React from "react"
 import { findPreferredTrack, getPlayerPreferences, setPlayerPreferences } from "./player-preferences"
 import { useActivePlaybackSource } from "./session"
@@ -89,6 +89,7 @@ export function useMpvPlayer() {
     const source = useActivePlaybackSource()
     const loadingMessage = useAtomValue(playerLoadingMessageAtom)
     const error = useAtomValue(playerErrorAtom)
+    const setError = useSetAtom(playerErrorAtom)
 
     const viewRef = React.useRef<MpvPlayerViewRef>(null)
     const [state, setState] = React.useState(INITIAL_STATE)
@@ -116,6 +117,7 @@ export function useMpvPlayer() {
         const prefs = getPlayerPreferences()
 
         return {
+            id: source.id,
             url: source.url,
             headers: source.headers,
             externalSubtitles: source.externalSubtitles?.map(s => ({
@@ -166,6 +168,7 @@ export function useMpvPlayer() {
         tracksLogRef.current = null
         hasAppliedDefaultTracks.current = false
         hasAppliedPrefs.current = false
+        setError(null)
         if (bufferingTimerRef.current !== null) {
             clearTimeout(bufferingTimerRef.current)
             bufferingTimerRef.current = null
@@ -181,7 +184,7 @@ export function useMpvPlayer() {
             subtitleCount: source.externalSubtitles?.length ?? 0,
         })
         setState({ ...INITIAL_STATE, status: "loading", paused: !shouldAutoplay })
-    }, [shouldAutoplay, source])
+    }, [setError, shouldAutoplay, source])
 
     // cleanup buffering debounce timer on unmount
     React.useEffect(() => {
@@ -316,9 +319,11 @@ export function useMpvPlayer() {
     }, [source])
 
     const onNativeError = React.useCallback((event: NativeEvent<OnErrorEventPayload>) => {
-        log.error("Native player error", getPlayerLogData(source), event.nativeEvent.error)
+        const message = event.nativeEvent.error?.trim() || "The built-in player could not open this stream."
+        log.error("Native player error", getPlayerLogData(source), message)
+        setError(message)
         setState(s => ({ ...s, status: "error" }))
-    }, [source])
+    }, [setError, source])
 
     const onNativePictureInPictureChange = React.useCallback((event: NativeEvent<OnPictureInPictureChangeEventPayload>) => {
         const { isActive } = event.nativeEvent

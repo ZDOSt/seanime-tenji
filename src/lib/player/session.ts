@@ -11,9 +11,9 @@ import type {
     DebridClient_StreamState,
     Torrentstream_TorrentStatus,
 } from "@/api/generated/types"
-import { usePlaybackCancelManualTracking } from "@/api/hooks/playback_manager.hooks"
 import { useServerUrl } from "@/atoms/server.atoms"
 import { logger } from "@/lib/utils/logger"
+import { toast } from "@/lib/utils/toast"
 import { useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "expo-router"
 import { atom, useAtom } from "jotai"
@@ -26,6 +26,7 @@ import type { AnimeEntryLaunchView, MobilePlaybackSource, PlayerNextEpisodeActio
 export const currentPlaybackSourceAtom = atom<MobilePlaybackSource | null>(null)
 
 const log = logger("player-session")
+const STREAM_URL_TIMEOUT_MS = 90_000
 
 export function resolvePlaybackMetadataFromCache(
     queryClient: any,
@@ -446,12 +447,10 @@ export function usePlayerEventListener() {
     const [, setDebridStreamState] = useAtom(debridStreamStateAtom)
     const [, setActiveStreamSession] = useAtom(activeStreamSessionAtom)
 
-    const { mutate: cancelManualTracking } = usePlaybackCancelManualTracking({})
-
     const pendingInfoRef = React.useRef<TorrentStreamPendingInfo | null>(null)
     const streamSessionModeRef = React.useRef<StreamSessionMode | null>(null)
     const loadingFallbackTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
-    const cancelManualTrackingTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+    const streamUrlTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null)
     const lastStreamStateLogRef = React.useRef<string | null>(null)
     const pendingInfo = useAtomValue(torrentStreamPendingInfoAtom)
     const streamSessionMode = useAtomValue(streamSessionModeAtom)
@@ -463,19 +462,47 @@ export function usePlayerEventListener() {
     }, [streamSessionMode])
 
     React.useEffect(() => {
+        if (streamUrlTimeout.current) {
+            clearTimeout(streamUrlTimeout.current)
+            streamUrlTimeout.current = null
+        }
+
+        if (!serverUrl || !pendingInfo) return
+
+        const expectedMediaId = pendingInfo.mediaId
+        const expectedEpisodeNumber = pendingInfo.episodeNumber
+        streamUrlTimeout.current = setTimeout(() => {
+            const active = pendingInfoRef.current
+            if (!active || active.mediaId !== expectedMediaId || active.episodeNumber !== expectedEpisodeNumber) return
+
+            const message = "The server did not deliver a playback link in time. Check the connection and try again."
+            log.error("Timed out waiting for stream playback URL", {
+                mode: active.streamMode,
+                mediaId: expectedMediaId,
+                episodeNumber: expectedEpisodeNumber,
+            })
+            setError(message)
+            setIsPreparing(false)
+            setPendingInfo(null)
+            setStreamSessionMode(null)
+            setActiveStreamSession(null)
+            toast.error(message)
+        }, STREAM_URL_TIMEOUT_MS)
+
+        return () => {
+            if (!streamUrlTimeout.current) return
+            clearTimeout(streamUrlTimeout.current)
+            streamUrlTimeout.current = null
+        }
+    }, [pendingInfo, serverUrl, setActiveStreamSession, setError, setIsPreparing, setPendingInfo, setStreamSessionMode])
+
+    React.useEffect(() => {
             if (!serverUrl) return
 
             const clearLoadingFallback = () => {
                 if (loadingFallbackTimer.current) {
                     clearTimeout(loadingFallbackTimer.current)
                     loadingFallbackTimer.current = null
-                }
-            }
-
-            const clearCancelManualTrackingTimer = () => {
-                if (cancelManualTrackingTimer.current) {
-                    clearTimeout(cancelManualTrackingTimer.current)
-                    cancelManualTrackingTimer.current = null
                 }
             }
 
@@ -500,7 +527,6 @@ export function usePlayerEventListener() {
 
             const resetTorrentStreamState = () => {
                 clearLoadingFallback()
-                clearCancelManualTrackingTimer()
                 streamSessionModeRef.current = null
                 setIsPreparing(false)
                 setPendingInfo(null)
@@ -654,12 +680,6 @@ export function usePlayerEventListener() {
                         return
                     }
 
-                    clearCancelManualTrackingTimer()
-                    cancelManualTrackingTimer.current = setTimeout(() => {
-                        log.info("Cancelling manual tracking on server as it is not relevant to Tenji")
-                        cancelManualTracking()
-                    }, 2000)
-
                     const base = getServerBaseUrl(serverUrl)
                     const resolvedUrl = payload.url
                         .replace("{{SCHEME}}://{{HOST}}", base)
@@ -753,7 +773,6 @@ export function usePlayerEventListener() {
             const unsubscribe = subscribeWsMessage(handleMessage)
             return () => {
                 clearLoadingFallback()
-                clearCancelManualTrackingTimer()
                 unsubscribe()
             }
         },

@@ -1,5 +1,6 @@
 import type { AnilistListAnime_Variables } from "@/api/generated/endpoint.types"
 import type {
+    AL_AnimeCollection,
     AL_BaseAnime,
     AL_MediaFormat,
     AL_MediaSeason,
@@ -8,7 +9,7 @@ import type {
     Continuity_WatchHistory,
     Models_HomeItem,
 } from "@/api/generated/types"
-import { useAnilistListAnime, useAnilistListMissedSequels } from "@/api/hooks/anilist.hooks"
+import { useAnilistListAnime, useAnilistListMissedSequels, useGetRawAnimeCollection } from "@/api/hooks/anilist.hooks"
 import { getEpisodePercentageComplete, useGetContinuityWatchHistory } from "@/api/hooks/continuity.hooks"
 import { useGetHomeItems } from "@/api/hooks/status.hooks"
 import { animeEntryPlaybackIntentAtom, createAnimeEntryPlaybackIntent } from "@/atoms/anime-entry.atoms"
@@ -136,6 +137,7 @@ function getAnimeCarouselVariables(item: Models_HomeItem): AnilistListAnime_Vari
 
 const LABELS: Record<string, string> = {
     CURRENT: "Currently watching",
+    REPEATING: "Repeating",
     PAUSED: "Paused",
     PLANNING: "Planning",
     COMPLETED: "Completed",
@@ -183,9 +185,11 @@ export function TVLibraryScreen() {
     const needsTrending = homeItemTypes.has("discover-header")
     const needsRecent = homeItemTypes.has("aired-recently")
     const needsMissedSequels = homeItemTypes.has("missed-sequels")
+    const needsMyLists = homeItemTypes.has("my-lists")
     const { data: trendingData } = useDiscoverTrendingAnime(needsTrending)
     const { media: recentlyAired } = useDiscoverRecentlyAired(needsRecent)
     const { data: missedSequels } = useAnilistListMissedSequels(needsMissedSequels)
+    const { data: rawAnimeCollection } = useGetRawAnimeCollection(needsMyLists)
     const trendingMedia = React.useMemo(
         () => trendingData?.Page?.media?.filter(Boolean) as AL_BaseAnime[] ?? [],
         [trendingData?.Page?.media],
@@ -432,6 +436,7 @@ export function TVLibraryScreen() {
                     continueWatchingList={continueWatchingList}
                     watchHistory={watchHistory}
                     shelves={shelves}
+                    rawAnimeCollection={rawAnimeCollection}
                     isFocused={isFocused}
                     isLoading={isLoading}
                     openContinue={openContinue}
@@ -520,6 +525,7 @@ type TVHomeContentProps = {
     continueWatchingList: ContinueWatchingItem[]
     watchHistory: Continuity_WatchHistory | undefined
     shelves: Shelf[]
+    rawAnimeCollection?: AL_AnimeCollection
     isFocused: boolean
     isLoading: boolean
     openContinue: (item: ContinueWatchingItem) => void
@@ -535,6 +541,7 @@ function TVHomeContent({
     continueWatchingList,
     watchHistory,
     shelves,
+    rawAnimeCollection,
     isFocused,
     isLoading,
     openContinue,
@@ -564,6 +571,7 @@ function TVHomeContent({
                     continueWatchingList={continueWatchingList}
                     watchHistory={watchHistory}
                     shelves={shelves}
+                    rawAnimeCollection={rawAnimeCollection}
                     isFocused={isFocused}
                     isLoading={isLoading}
                     openContinue={openContinue}
@@ -588,6 +596,7 @@ function TVHomeItemView({
     continueWatchingList,
     watchHistory,
     shelves,
+    rawAnimeCollection,
     isFocused,
     isLoading,
     openContinue,
@@ -617,8 +626,7 @@ function TVHomeItemView({
                 />
             )
 
-        case "anime-library":
-        case "my-lists": {
+        case "anime-library": {
             const selectedShelves = getLibraryShelvesForHomeItem(item, shelves)
             return (
                 <View style={{ gap: TV.sectionGap }}>
@@ -632,6 +640,23 @@ function TVHomeItemView({
                             hideLibraryBadge={shelf.hideLibraryBadge}
                             hideProgress={shelf.hideProgress}
                             onMediaPress={shelf.onMediaPress}
+                            first={index === 0 && shelfIndex === 0}
+                        />
+                    ))}
+                </View>
+            )
+        }
+
+        case "my-lists": {
+            const selectedShelves = getRawListShelves(item, rawAnimeCollection)
+            return (
+                <View style={{ gap: TV.sectionGap }}>
+                    {selectedShelves.map((shelf, shelfIndex) => (
+                        <TVShelf
+                            key={`${item.id}-${shelf.key}`}
+                            title={shelf.title}
+                            media={shelf.media}
+                            hideLibraryBadge
                             first={index === 0 && shelfIndex === 0}
                         />
                     ))}
@@ -704,11 +729,34 @@ function TVHomeItemView({
 
 function getLibraryShelvesForHomeItem(item: Models_HomeItem, shelves: Shelf[]) {
     const statuses = getHomeItemStringArrayOption(item, "statuses")
-    const libraryShelves = shelves.filter(shelf => ["CURRENT", "PAUSED", "PLANNING", "COMPLETED", "DROPPED"].includes(shelf.key))
+    const libraryShelves = shelves.filter(shelf => ["CURRENT", "REPEATING", "PAUSED", "PLANNING", "COMPLETED", "DROPPED"].includes(shelf.key))
 
     if (!statuses.length) return libraryShelves
 
     return libraryShelves.filter(shelf => statuses.includes(shelf.key))
+}
+
+function getRawListShelves(item: Models_HomeItem, collection: AL_AnimeCollection | undefined): Shelf[] {
+    const options = getHomeItemOptions(item)
+    if (options.type === "manga") return []
+
+    const statuses = getHomeItemStringArrayOption(item, "statuses")
+    const customListName = getHomeItemStringOption(item, "customListName")
+    const lists = collection?.MediaListCollection?.lists ?? []
+
+    if (customListName) {
+        const custom = lists.find(list => list.name?.trim() === customListName)
+        const media = custom?.entries?.map(entry => entry.media).filter(Boolean) as AL_BaseAnime[] ?? []
+        return media.length > 0 ? [{ key: `custom-${customListName}`, title: customListName, media }] : []
+    }
+
+    return lists.flatMap(list => {
+        const status = list.status
+        if (list.isCustomList || !status || (statuses.length > 0 && !statuses.includes(status))) return []
+        const media = list.entries?.map(entry => entry.media).filter(Boolean) as AL_BaseAnime[] ?? []
+        if (media.length === 0) return []
+        return [{ key: status, title: LABELS[status] ?? status, media, hideLibraryBadge: true }]
+    })
 }
 
 function TVContinueShelf({

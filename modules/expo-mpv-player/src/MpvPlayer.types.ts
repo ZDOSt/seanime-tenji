@@ -25,6 +25,8 @@ export type MpvVideoOutput = "gpu-next" | "gpu"
  * Changing this prop triggers the native view to load the new video.
  */
 export type MpvVideoSource = {
+    /** Stable playback-session identifier. Allows retrying the same URL. */
+    id?: string
     url: string
     headers?: Record<string, string>
     externalSubtitles?: MpvExternalSubtitle[]

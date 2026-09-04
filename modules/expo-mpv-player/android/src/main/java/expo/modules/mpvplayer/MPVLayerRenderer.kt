@@ -160,9 +160,15 @@ class MPVLayerRenderer(private val context: Context) : MPVLib.EventObserver, MPV
             }
         }
 
-        // cache & demuxer
-        MPVLib.setOptionString("cache", "auto")
-        MPVLib.setOptionString("cache-secs", "10")
+        // Keep the mobile buffering profile used by the stable Android build.
+        // TVs use a smaller bounded cache to avoid exhausting device memory.
+        if (isTv) {
+            MPVLib.setOptionString("cache", "auto")
+            MPVLib.setOptionString("cache-secs", "10")
+        } else {
+            MPVLib.setOptionString("cache", "yes")
+            MPVLib.setOptionString("demuxer-readahead-secs", "20")
+        }
         MPVLib.setOptionString("cache-pause-initial", "yes")
         MPVLib.setOptionString("demuxer-max-bytes", if (isTv) "75MiB" else "150MiB")
         MPVLib.setOptionString("demuxer-max-back-bytes", if (isTv) "30MiB" else "50MiB")
@@ -793,6 +799,9 @@ class MPVLayerRenderer(private val context: Context) : MPVLib.EventObserver, MPV
         val entry = "$prefix: $message".take(360)
         decoderError = entry
         Log.w(TAG, "[mpv decoder] $entry")
+        if (lower.contains("error") || lower.contains("failed") || lower.contains("cannot") || lower.contains("unable")) {
+            mainHandler.post { delegate?.onError(entry) }
+        }
     }
 
     // -------------------------------------------------------------------

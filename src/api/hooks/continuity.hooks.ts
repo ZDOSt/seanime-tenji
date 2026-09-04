@@ -102,7 +102,7 @@ export function useHandleCurrentMediaContinuity(mediaId: Nullish<number | string
         if (!serverStatus?.settings?.library?.enableWatchContinuity || !mediaId || !watchHistory || !playerDuration || !episodeNumber) return 0
         const item = watchHistory?.item
         if (!item || !item.currentTime || !item.duration || item.episodeNumber !== episodeNumber) return 0
-        if (!(item.currentTime > 0 && item.currentTime < playerDuration) || (item.currentTime / item.duration) > 90) return 0
+        if (!(item.currentTime > 0 && item.currentTime < playerDuration) || (item.currentTime / item.duration) > 0.9) return 0
         return item.currentTime
     }
 

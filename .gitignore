@@ -72,7 +72,6 @@ with-nextjs/out
 */ios/Pods
 **/*/android/**/.gradle
 **/*/android/**/build
-modules/expo-mpv-player/android/src/main/jniLibs/**/
 
 # Websockets
 */backend/.env

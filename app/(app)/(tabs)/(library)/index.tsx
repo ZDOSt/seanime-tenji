@@ -1,5 +1,5 @@
-import type { AL_BaseAnime, Anime_LibraryCollectionList, Models_HomeItem } from "@/api/generated/types"
-import { useAnilistListAnime, useAnilistListMissedSequels } from "@/api/hooks/anilist.hooks"
+import type { AL_AnimeCollection, AL_BaseAnime, Anime_LibraryCollectionList, Models_HomeItem } from "@/api/generated/types"
+import { useAnilistListAnime, useAnilistListMissedSequels, useGetRawAnimeCollection } from "@/api/hooks/anilist.hooks"
 import { useGetHomeItems } from "@/api/hooks/status.hooks"
 import { animeEntryPlaybackIntentAtom, createAnimeEntryPlaybackIntent } from "@/atoms/anime-entry.atoms"
 import { ContinueWatching } from "@/components/features/anime/continue-watching"
@@ -83,9 +83,11 @@ function MobileLibraryScreen() {
     const needsTrending = homeItemTypes.has("discover-header")
     const needsRecent = homeItemTypes.has("aired-recently")
     const needsMissedSequels = homeItemTypes.has("missed-sequels")
+    const needsMyLists = homeItemTypes.has("my-lists")
     const { data: trendingData } = useDiscoverTrendingAnime(needsTrending)
     const { media: recentlyAired } = useDiscoverRecentlyAired(needsRecent)
     const { data: missedSequels } = useAnilistListMissedSequels(needsMissedSequels)
+    const { data: rawAnimeCollection } = useGetRawAnimeCollection(needsMyLists)
     const trendingMedia = React.useMemo(
         () => trendingData?.Page?.media?.filter(Boolean) as AL_BaseAnime[] ?? [],
         [trendingData?.Page?.media],
@@ -200,6 +202,7 @@ function MobileLibraryScreen() {
                                     index={index}
                                     continueWatchingList={continueWatchingList}
                                     libraryCollectionList={libraryCollectionList}
+                                    rawAnimeCollection={rawAnimeCollection}
                                     hasNonLocalEpisodes={hasNonLocalEpisodes}
                                     recentlyAired={recentlyAired}
                                     missedSequels={missedSequels ?? []}
@@ -210,6 +213,7 @@ function MobileLibraryScreen() {
                                 />
                             )}
                             keyExtractor={(item, index) => `${item.id}-${item.type}-${index}`}
+                            extraData={{ recentlyAired, missedSequels, trendingMedia, rawAnimeCollection }}
                             ListFooterComponent={(
                                 <View className="gap-4">
                                     {!homeItems.some(item => item.type === "local-anime-library") && <ServerLocalAnimeList />}
@@ -233,7 +237,7 @@ function MobileLibraryScreen() {
                             maxToRenderPerBatch={2}
                             updateCellsBatchingPeriod={16}
                             windowSize={5}
-                            removeClippedSubviews
+                            removeClippedSubviews={false}
                             onScroll={scrollHandler}
                             scrollEventThrottle={16}
                         />
@@ -298,11 +302,37 @@ function getMobileLibrarySections(item: Models_HomeItem, lists: Anime_LibraryCol
     })
 }
 
+function getMobileRawListSections(item: Models_HomeItem, collection: AL_AnimeCollection | undefined) {
+    const options = item.options && typeof item.options === "object" && !Array.isArray(item.options)
+        ? item.options as Record<string, unknown>
+        : {}
+    if (options.type === "manga") return []
+
+    const statuses = getHomeItemStringArrayOption(item, "statuses")
+    const customListName = getHomeItemStringOption(item, "customListName")
+    const lists = collection?.MediaListCollection?.lists ?? []
+
+    if (customListName) {
+        const custom = lists.find(list => list.name?.trim() === customListName)
+        const media = custom?.entries?.map(entry => entry.media).filter(Boolean) as AL_BaseAnime[] ?? []
+        return media.length > 0 ? [{ key: `custom-${customListName}`, title: customListName, media }] : []
+    }
+
+    return lists.flatMap(list => {
+        const status = list.status
+        if (list.isCustomList || !status || (statuses.length > 0 && !statuses.includes(status))) return []
+        const media = list.entries?.map(entry => entry.media).filter(Boolean) as AL_BaseAnime[] ?? []
+        if (media.length === 0) return []
+        return [{ key: status, title: MOBILE_LIBRARY_LABELS[status] ?? status, media }]
+    })
+}
+
 type MobileHomeItemViewProps = {
     item: Models_HomeItem
     index: number
     continueWatchingList: ContinueWatchingItem[]
     libraryCollectionList: Anime_LibraryCollectionList[]
+    rawAnimeCollection?: AL_AnimeCollection
     hasNonLocalEpisodes: boolean
     recentlyAired: AL_BaseAnime[]
     missedSequels: AL_BaseAnime[]
@@ -317,6 +347,7 @@ function MobileHomeItemView({
     index,
     continueWatchingList,
     libraryCollectionList,
+    rawAnimeCollection,
     hasNonLocalEpisodes,
     recentlyAired,
     missedSequels,
@@ -340,8 +371,7 @@ function MobileHomeItemView({
         case "anime-continue-watching":
             return <ContinueWatching items={continueWatchingList} />
 
-        case "anime-library":
-        case "my-lists": {
+        case "anime-library": {
             const sections = getMobileLibrarySections(item, libraryCollectionList)
             return (
                 <View className="gap-4">
@@ -352,6 +382,22 @@ function MobileHomeItemView({
                             type="anime"
                             media={section.media}
                             hideLibraryBadge={section.key !== "CURRENT" || !hasNonLocalEpisodes}
+                        />
+                    ))}
+                </View>
+            )
+        }
+
+        case "my-lists": {
+            const sections = getMobileRawListSections(item, rawAnimeCollection)
+            return (
+                <View className="gap-4">
+                    {sections.map(section => (
+                        <HorizontalMediaCardList
+                            key={`${item.id}-${section.key}`}
+                            title={section.title}
+                            type="anime"
+                            media={section.media}
                         />
                     ))}
                 </View>

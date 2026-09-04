@@ -1,6 +1,6 @@
 # libmpv JNI Libraries
 
-This directory must contain the prebuilt libmpv `.so` binaries for each ABI.
+This directory must contain the prebuilt `libmpv.so` and `libplayer.so` binaries for each ABI.
 
 ## Required Structure
 
@@ -8,12 +8,16 @@ This directory must contain the prebuilt libmpv `.so` binaries for each ABI.
 jniLibs/
   arm64-v8a/
     libmpv.so
+    libplayer.so
   armeabi-v7a/
     libmpv.so
+    libplayer.so
   x86_64/
     libmpv.so
+    libplayer.so
   x86/
     libmpv.so
+    libplayer.so
 ```
 
 ## How to Obtain
@@ -24,7 +28,7 @@ The recommended source is the [mpv-android](https://github.com/mpv-android/mpv-a
 
 1. Go to https://github.com/mpv-android/mpv-android/releases
 2. Download the universal debug APK
-3. Extract the `.so` files from `lib/{abi}/` inside the APK (it's a zip)
+3. Extract both `libmpv.so` and `libplayer.so` from `lib/{abi}/` inside the APK (it's a zip)
 4. Place them in the above structure
 5. Remove `libc++_shared.so` from each ABI (React Native already provides it)
 

@@ -52,11 +52,18 @@ export function WebsocketProvider({ children }: { children: React.ReactNode }) {
         let cancelled = false
         let retryCount = 0
         let retryTimer: ReturnType<typeof setTimeout> | null = null
+        let connectTimer: ReturnType<typeof setTimeout> | null = null
 
         const clearRetry = () => {
             if (!retryTimer) return
             clearTimeout(retryTimer)
             retryTimer = null
+        }
+
+        const clearConnectTimeout = () => {
+            if (!connectTimer) return
+            clearTimeout(connectTimer)
+            connectTimer = null
         }
 
         const connect = () => {
@@ -74,9 +81,15 @@ export function WebsocketProvider({ children }: { children: React.ReactNode }) {
             const nextSocket = new WebSocket(url)
             socket = nextSocket
             log.info("Connecting to WebSocket", url)
+            connectTimer = setTimeout(() => {
+                if (socket !== nextSocket || nextSocket.readyState !== WebSocket.CONNECTING) return
+                log.warning("WebSocket connection timed out")
+                nextSocket.close()
+            }, 10_000)
 
             nextSocket.addEventListener("open", () => {
                 if (cancelled || socket !== nextSocket) return
+                clearConnectTimeout()
                 log.info("WebSocket connection opened")
                 retryCount = 0
                 setIsConnected(true)
@@ -106,6 +119,7 @@ export function WebsocketProvider({ children }: { children: React.ReactNode }) {
             nextSocket.addEventListener("close", () => {
                 if (cancelled || socket !== nextSocket) return
 
+                clearConnectTimeout()
                 socket = null
                 setIsConnected(false)
                 setConnectionState("disconnected")
@@ -131,6 +145,7 @@ export function WebsocketProvider({ children }: { children: React.ReactNode }) {
         return () => {
             cancelled = true
             clearRetry()
+            clearConnectTimeout()
             appStateSub.remove()
             socket?.close()
         }
