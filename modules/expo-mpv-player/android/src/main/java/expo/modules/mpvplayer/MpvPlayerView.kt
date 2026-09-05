@@ -161,9 +161,7 @@ class MpvPlayerView(context: Context, appContext: AppContext) : ExpoView(context
                 renderer?.start()
                 rendererStarted = true
             } catch (error: Throwable) {
-                val message = error.message?.takeIf { it.isNotBlank() }
-                    ?: error::class.java.simpleName
-                    ?: "Unknown player initialization error"
+                val message = describeError(error)
                 Log.e(TAG, "Could not initialize native player", error)
                 onError(mapOf("error" to message))
                 canApplyPendingSource = false
@@ -177,6 +175,23 @@ class MpvPlayerView(context: Context, appContext: AppContext) : ExpoView(context
 
         canApplyPendingSource = true
         applyPendingSourceR()
+    }
+
+    private fun describeError(error: Throwable): String {
+        val parts = mutableListOf<String>()
+        val seen = mutableSetOf<Throwable>()
+        var current: Throwable? = error
+
+        while (current != null && seen.add(current)) {
+            val detail = current.message?.trim()
+            val label = current::class.java.simpleName
+            parts += if (detail.isNullOrEmpty()) label else "$label: $detail"
+            current = current.cause
+        }
+
+        return parts.joinToString("; ").take(1200).ifBlank {
+            "Unknown player initialization error"
+        }
     }
 
     private fun applyPendingSourceR() {

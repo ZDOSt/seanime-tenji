@@ -58,7 +58,7 @@ The recommended source is the [mpv-android](https://github.com/mpv-android/mpv-a
 2. Download the universal debug APK
 3. Extract `libmpv.so`, `libplayer.so`, and all `libav*.so`/`libsw*.so` files from `lib/{abi}/` inside the APK (it's a zip)
 4. Place them in the above structure
-5. Remove `libc++_shared.so` from each ABI (React Native provides it; the app build plugin replaces it when needed)
+5. Keep the matching `libc++_shared.so` from the same mpv-android release in each ABI directory. The app build plugin uses these copies instead of React Native's runtime.
 
 `libmpv.so` is dynamically linked against FFmpeg. Shipping only `libmpv.so` and `libplayer.so` causes Android's linker to fail with a missing `libavcodec.so` error during playback.
 
