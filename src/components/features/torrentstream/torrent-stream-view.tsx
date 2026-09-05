@@ -143,15 +143,7 @@ function TVTorrentStreamView({
                 onPress={onToggleAutoSelect}
             />
 
-            {!autoSelect && usePreviousBatch ? (
-                <TVPillButton
-                    label="Reuse previous batch"
-                    active
-                    onPress={onToggleUsePreviousBatch}
-                />
-            ) : null}
-
-            {!autoSelect && !usePreviousBatch ? (
+            {!autoSelect ? (
                 <TVPillButton
                     label="Auto-select file"
                     active={autoSelectFile}
@@ -251,16 +243,7 @@ function MobileTorrentStreamView({
                             : "Automatically pick the best torrent and file for the episode."}
                     />
 
-                    {!autoSelect && usePreviousBatch && (
-                        <LabeledSwitch
-                            label="Reuse previous batch"
-                            checked={usePreviousBatch}
-                            onToggle={onToggleUsePreviousBatch}
-                            helper="Reuse the previously selected batch torrent for subsequent episodes when possible."
-                        />
-                    )}
-
-                    {!autoSelect && !usePreviousBatch && (
+                    {!autoSelect && (
                         <LabeledSwitch
                             label="Auto-select file"
                             checked={autoSelectFile}

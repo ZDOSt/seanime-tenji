@@ -384,6 +384,7 @@ export function AnimeEntryTorrentStreamSection({ entry }: AnimeEntryTorrentStrea
                     availableModes={torrentStream.availableModes}
                     onSelectStreamMode={torrentStream.setStreamMode}
                     onSelectEpisodeNumber={torrentStream.setSelectedEpisodeNumber}
+                    autoSelectEnabled={torrentStream.autoSelect}
                 />
             )}
 
@@ -417,6 +418,7 @@ export function AnimeEntryTorrentStreamSection({ entry }: AnimeEntryTorrentStrea
                     onSelectSearchMode={torrentStream.setSearchMode}
                     torrentCache={torrentStream.torrentCache}
                     torrentMetadataByInfoHash={torrentStream.torrentMetadataByInfoHash}
+                    autoSelectEnabled={torrentStream.autoSelect}
 
                     providerExtensions={torrentStream.providerExtensions}
                     selectedProviderId={torrentStream.selectedProviderId}

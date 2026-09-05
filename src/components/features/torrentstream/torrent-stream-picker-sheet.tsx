@@ -86,6 +86,7 @@ type TorrentStreamPickerSheetProps = {
     destination?: string
     onChangeDestination?: (path: string) => void
     onSelectEpisodeNumber?: (episodeNumber: number) => void
+    autoSelectEnabled?: boolean
 }
 
 export function TorrentStreamPickerSheet(props: TorrentStreamPickerSheetProps) {
@@ -148,14 +149,15 @@ export function TorrentStreamPickerSheet(props: TorrentStreamPickerSheetProps) {
         destination,
         onChangeDestination,
         onSelectEpisodeNumber,
+        autoSelectEnabled = true,
     } = props
 
     const primaryLabel = React.useMemo(() => {
         if (pickerStage === "files") return "Stream selected file"
-        if (!selectedTorrent) return "Auto select now"
+        if (!selectedTorrent) return autoSelectEnabled ? "Auto select now" : "Select a release"
         if (selectedTorrent.isBatch) return "Choose file"
         return "Start selected"
-    }, [pickerStage, selectedTorrent, streamMode])
+    }, [autoSelectEnabled, pickerStage, selectedTorrent, streamMode])
 
     const snapPoints = React.useMemo(() => ["72%", "92%"], [])
 
@@ -276,6 +278,7 @@ export function TorrentStreamPickerSheet(props: TorrentStreamPickerSheetProps) {
                     disabled={
                         isStarting ||
                         !selectedEpisode ||
+                        (pickerStage === "torrents" && !selectedTorrent && !autoSelectEnabled) ||
                         (pickerStage === "files" && selectedFileId === null)
                     }
                 >
@@ -300,6 +303,7 @@ export function TorrentStreamPickerSheet(props: TorrentStreamPickerSheetProps) {
         onConfirmFileSelection,
         selectedEpisode,
         primaryLabel,
+        autoSelectEnabled,
         destination,
         onChangeDestination,
     ])
@@ -740,8 +744,8 @@ function TorrentSelectionStage(props: TorrentSelectionStageProps) {
                 <View className="gap-2">
                     <View className="flex-row justify-between items-center">
                         <FormSectionLabel>Previous Selection</FormSectionLabel>
-                        {usePreviousBatch && (
-                            <Text className="text-xs text-white/35">Auto-selected on episode tap</Text>
+                        {batchHistory?.torrent && (
+                            <Text className="text-xs text-white/35">Available as an explicit choice</Text>
                         )}
                     </View>
                     <Pressable
