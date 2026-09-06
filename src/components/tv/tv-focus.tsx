@@ -4,6 +4,31 @@ import { useSegments } from "expo-router"
 import * as React from "react"
 import { Animated, Pressable, type PressableProps, Text, useTVEventHandler, View } from "react-native"
 
+type TVNavigationContextValue = {
+    destination: React.ElementRef<typeof Pressable> | null
+    registerDestination: (view: React.ElementRef<typeof Pressable> | null) => void
+}
+
+const TVNavigationContext = React.createContext<TVNavigationContextValue | null>(null)
+
+export function TVNavigationProvider({ children }: { children: React.ReactNode }) {
+    const [destination, setDestination] = React.useState<React.ElementRef<typeof Pressable> | null>(null)
+    const registerDestination = React.useCallback((view: React.ElementRef<typeof Pressable> | null) => {
+        setDestination(view)
+    }, [])
+
+    const value = React.useMemo(() => ({ destination, registerDestination }), [destination, registerDestination])
+    return <TVNavigationContext.Provider value={value}>{children}</TVNavigationContext.Provider>
+}
+
+export function useTVNavigationDestination() {
+    return React.useContext(TVNavigationContext)?.destination ?? null
+}
+
+export function useTVNavigationRegistration() {
+    return React.useContext(TVNavigationContext)?.registerDestination ?? (() => undefined)
+}
+
 const activeFocusLabels = new Set<string>()
 let checkTimeout: ReturnType<typeof setTimeout> | null = null
 
@@ -88,6 +113,7 @@ type TVButtonProps = PressableProps & {
     variant?: "primary" | "secondary" | "ghost" | "danger"
     size?: "default" | "compact"
     preferred?: boolean
+    navOnUp?: boolean
     className?: string
 }
 
@@ -106,6 +132,7 @@ export const TVButton = React.forwardRef<React.ElementRef<typeof Pressable>, TVB
         variant = "secondary",
         size = "default",
         preferred,
+        navOnUp = false,
         className,
         onFocus,
         onBlur,
@@ -116,6 +143,7 @@ export const TVButton = React.forwardRef<React.ElementRef<typeof Pressable>, TVB
         const focusState = useTVFocus(1.04, label)
         const routePreferred = usePreferredFocus(preferred)
         const isPreferred = hasTVPreferredFocus ?? routePreferred
+        const navDestination = useTVNavigationDestination()
         const primary = variant === "primary"
 
         return (
@@ -124,6 +152,7 @@ export const TVButton = React.forwardRef<React.ElementRef<typeof Pressable>, TVB
                 ref={ref}
                 disabled={disabled}
                 hasTVPreferredFocus={isPreferred}
+                nextFocusUp={navOnUp ? navDestination : props.nextFocusUp}
                 onFocus={(event) => {
                     focusState.focus()
                     onFocus?.(event)
@@ -193,6 +222,7 @@ type TVPillButtonProps = PressableProps & {
     label: string
     active?: boolean
     preferred?: boolean
+    navOnUp?: boolean
     icon?: React.ReactNode | ((focused: boolean) => React.ReactNode)
     className?: string
     variant?: string
@@ -203,6 +233,7 @@ export const TVPillButton = React.forwardRef<React.ElementRef<typeof Pressable>,
         label,
         active,
         preferred,
+        navOnUp = false,
         icon,
         className,
         onFocus,
@@ -213,6 +244,7 @@ export const TVPillButton = React.forwardRef<React.ElementRef<typeof Pressable>,
     }, ref) => {
         const focusState = useTVFocus(1.05, label)
         const isPreferred = usePreferredFocus(preferred)
+        const navDestination = useTVNavigationDestination()
         const renderedIcon = typeof icon === "function"
             ? icon(focusState.focused)
             : (focusState.focused && React.isValidElement(icon)
@@ -225,6 +257,7 @@ export const TVPillButton = React.forwardRef<React.ElementRef<typeof Pressable>,
                 ref={ref}
                 disabled={disabled}
                 hasTVPreferredFocus={isPreferred}
+                nextFocusUp={navOnUp ? navDestination : props.nextFocusUp}
                 onFocus={(event) => {
                     focusState.focus()
                     onFocus?.(event)

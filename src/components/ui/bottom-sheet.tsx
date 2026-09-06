@@ -7,7 +7,7 @@ import BottomSheet, {
 } from "@gorhom/bottom-sheet"
 import { Portal } from "@rn-primitives/portal"
 import React, { useCallback, useId, useMemo, useRef } from "react"
-import { BackHandler, Platform, ScrollView, Text, TVFocusGuideView, View } from "react-native"
+import { BackHandler, Modal, Platform, ScrollView, Text, TVFocusGuideView, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 type BottomSheetProps = {
@@ -177,15 +177,38 @@ function TVSheet({
     if (!open) return null
 
     return (
-        <Portal name={`tv-sheet-${id}`}>
-            <View className="absolute inset-0 z-50 items-center justify-center bg-black/80 px-16 py-10">
+        <Modal
+            visible
+            transparent
+            animationType="none"
+            onRequestClose={() => onOpenChange(false)}
+        >
+            <View
+                style={{
+                    flex: 1,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    paddingHorizontal: 64,
+                    paddingVertical: 40,
+                    backgroundColor: "rgba(0,0,0,0.84)",
+                }}
+            >
                 <TVFocusGuideView
                     autoFocus
                     trapFocusDown
                     trapFocusLeft
                     trapFocusRight
                     trapFocusUp
-                    className="max-h-[88%] w-[78%] max-w-5xl overflow-hidden rounded-2xl border border-white/15 bg-card"
+                    style={{
+                        width: "78%",
+                        maxWidth: 1280,
+                        maxHeight: "88%",
+                        overflow: "hidden",
+                        borderRadius: 16,
+                        borderWidth: 1,
+                        borderColor: "rgba(255,255,255,0.15)",
+                        backgroundColor: "#111214",
+                    }}
                 >
                     {title ? (
                         <View className="border-b border-white/10 px-7 py-5">
@@ -206,6 +229,6 @@ function TVSheet({
                     ) : null}
                 </TVFocusGuideView>
             </View>
-        </Portal>
+        </Modal>
     )
 }

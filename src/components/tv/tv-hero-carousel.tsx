@@ -32,6 +32,7 @@ type Props = {
     preferred?: boolean
     height?: number
     loading?: boolean
+    navOnUp?: boolean
 }
 
 export const TVHeroCarousel = React.memo(function TVHeroCarousel({
@@ -40,6 +41,7 @@ export const TVHeroCarousel = React.memo(function TVHeroCarousel({
     preferred,
     height = tvSize(560),
     loading = false,
+    navOnUp = false,
 }: Props) {
     const [index, setIndex] = React.useState(0)
     const [firstAction, setFirstAction] = React.useState<React.ElementRef<typeof Pressable> | null>(null)
@@ -167,11 +169,12 @@ export const TVHeroCarousel = React.memo(function TVHeroCarousel({
                         variant="primary"
                         size="compact"
                         preferred={preferred && active}
+                        navOnUp={navOnUp}
                         icon={<Ionicons name="play" size={tvSize(22)} color="white" />}
                         onPress={item.onAction}
                     />
                     {item.secondaryLabel && item.onSecondary ? (
-                        <TVButton
+                            <TVButton
                             label={item.secondaryLabel}
                             variant="secondary"
                             size="compact"
@@ -185,6 +188,7 @@ export const TVHeroCarousel = React.memo(function TVHeroCarousel({
                                 label=""
                                 accessibilityLabel="Previous featured title"
                                 onPress={() => move(index - 1)}
+                                navOnUp={navOnUp}
                                 icon={(focused) => (
                                     <Ionicons
                                         name="chevron-back"
@@ -197,6 +201,7 @@ export const TVHeroCarousel = React.memo(function TVHeroCarousel({
                                 label=""
                                 accessibilityLabel="Next featured title"
                                 onPress={() => move(index + 1)}
+                                navOnUp={navOnUp}
                                 icon={(focused) => (
                                     <Ionicons
                                         name="chevron-forward"

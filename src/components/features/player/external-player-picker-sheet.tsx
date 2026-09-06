@@ -82,6 +82,7 @@ export function ExternalPlayerPickerSheet({ open, onOpenChange }: ExternalPlayer
                 <OptionRow
                     label="In-App player (mpv)"
                     active={selected === null}
+                    preferred={selected === null}
                     onPress={() => handleSelect(null)}
                 />
             </Surface>
@@ -96,6 +97,7 @@ export function ExternalPlayerPickerSheet({ open, onOpenChange }: ExternalPlayer
                                 label={preset.name}
                                 detail={preset.urlTemplate}
                                 active={selected === preset.id}
+                                preferred={selected === preset.id}
                                 onPress={() => handleSelect(preset)}
                             />
                         </React.Fragment>
