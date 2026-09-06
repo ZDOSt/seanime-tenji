@@ -1,7 +1,7 @@
 import { addClientQueryParams, getClientIdentity, saveClientIdentityFromEvent } from "@/api/client/client-identity"
 import { getServerBaseUrl } from "@/api/client/server-url"
 import { useWebsocketEventRouter } from "@/api/components/websocket-event-router"
-import { publishWsMessage, type WebsocketMessage } from "@/api/components/websocket-hub"
+import { publishWsMessage, registerWsSender, type WebsocketMessage } from "@/api/components/websocket-hub"
 import { useServerAuthToken, useServerUrl, useServerUrlProtocol } from "@/atoms/server.atoms"
 import { degradeServerReachability, markServerReachable } from "@/lib/connection-state"
 import { manualOfflineModeAtom } from "@/lib/offline/manual-offline-mode"
@@ -53,6 +53,7 @@ export function WebsocketProvider({ children }: { children: React.ReactNode }) {
         let retryCount = 0
         let retryTimer: ReturnType<typeof setTimeout> | null = null
         let connectTimer: ReturnType<typeof setTimeout> | null = null
+        let unregisterSender: (() => void) | null = null
 
         const clearRetry = () => {
             if (!retryTimer) return
@@ -80,6 +81,18 @@ export function WebsocketProvider({ children }: { children: React.ReactNode }) {
             const url = `${scheme}://${getServerBaseUrl(serverUrl, true)}/events?${params.toString()}`
             const nextSocket = new WebSocket(url)
             socket = nextSocket
+            unregisterSender?.()
+            unregisterSender = registerWsSender(message => {
+                if (nextSocket.readyState !== WebSocket.OPEN) return false
+                try {
+                    nextSocket.send(JSON.stringify(message))
+                    return true
+                }
+                catch (error) {
+                    log.warning("Failed to send WebSocket message", error)
+                    return false
+                }
+            })
             log.info("Connecting to WebSocket", url)
             connectTimer = setTimeout(() => {
                 if (socket !== nextSocket || nextSocket.readyState !== WebSocket.CONNECTING) return
@@ -119,6 +132,9 @@ export function WebsocketProvider({ children }: { children: React.ReactNode }) {
             nextSocket.addEventListener("close", () => {
                 if (cancelled || socket !== nextSocket) return
 
+                unregisterSender?.()
+                unregisterSender = null
+
                 clearConnectTimeout()
                 socket = null
                 setIsConnected(false)
@@ -147,6 +163,8 @@ export function WebsocketProvider({ children }: { children: React.ReactNode }) {
             clearRetry()
             clearConnectTimeout()
             appStateSub.remove()
+            unregisterSender?.()
+            unregisterSender = null
             socket?.close()
         }
     }, [manualOffline, serverAuthToken, serverUrl, serverUrlProtocol, setConnectionState, setIsConnected])

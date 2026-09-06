@@ -38,6 +38,7 @@ import {
     type StreamFilePreview,
 } from "./torrent-stream-picker-utils"
 import { batchAction } from "./previous-batch"
+import type { AioStreamsResult } from "@/components/features/aiostreams/use-aiostreams-plugin-controller"
 
 const log = logger("torrent-stream")
 
@@ -626,6 +627,34 @@ export function useTorrentStreamController({ entry, mode = "stream" }: UseTorren
         [clearPendingStreamState, entry, mediaId, resetPicker, setActiveStreamSession, setDebridStreamState, setIsPreparing, setLoadingState,
             setPendingInfo, setStreamSessionMode, startDebridStream, startTorrentStream, streamMode])
 
+    const startPluginResult = React.useCallback((result: AioStreamsResult, episode: Anime_Episode) => {
+        if (!result.infoHash || !mediaId) return false
+
+        const torrent: HibikeTorrent_AnimeTorrent = {
+            name: result.folderName ?? result.filename ?? result.name ?? "AIOStreams result",
+            date: "",
+            size: result.size ?? 0,
+            formattedSize: "",
+            seeders: result.seeders ?? 0,
+            leechers: 0,
+            downloadCount: 0,
+            link: result.magnetLink ?? "",
+            downloadUrl: result.magnetLink ?? "",
+            magnetLink: result.magnetLink ?? undefined,
+            infoHash: result.infoHash,
+            isBestRelease: false,
+            confirmed: false,
+        }
+
+        startManualStream({
+            episode,
+            torrent,
+            fileIndex: result.fileIdx ?? undefined,
+            launchMode: "manual",
+        }, streamMode)
+        return true
+    }, [mediaId, startManualStream, streamMode])
+
     const buildBatchEpisodeFiles = React.useCallback((
         previews: StreamFilePreview[] | undefined,
         currentFileId: string,
@@ -902,6 +931,7 @@ export function useTorrentStreamController({ entry, mode = "stream" }: UseTorren
         smartSearchBatch,
         stopCurrentStream,
         startAutoSelectedStream,
+        startPluginResult,
         startPreviousBatchStream,
         streamMode,
         torrents: searchData?.torrents ?? [],

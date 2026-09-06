@@ -120,8 +120,9 @@ class MPVLayerRenderer(private val context: Context) : MPVLib.EventObserver, MPV
     private val emulator: Boolean = isEmulator()
     private val requestedHwdec: String = when {
         emulator -> "no"
-        // Use the copy path on TV to avoid direct-surface driver dependencies.
-        isTv -> "mediacodec-copy"
+        // Prefer direct Android hardware decoding, with copy-mode fallback for
+        // devices whose decoder cannot export frames to the configured surface.
+        isTv -> "mediacodec,mediacodec-copy"
         else -> "mediacodec-copy"
     }
     @Volatile
