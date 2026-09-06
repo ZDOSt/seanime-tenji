@@ -117,6 +117,18 @@ export function getPlatformExternalPlayers(): ExternalPlayerPreset[] {
     )
 }
 
+export async function getInstalledExternalPlayers(): Promise<ExternalPlayerPreset[]> {
+    const presets = getPlatformExternalPlayers()
+    if (Platform.OS !== "android") return presets
+
+    const installed = await Promise.all(presets.map(async preset => {
+        if (!preset.androidPackage) return false
+        return ExpoExternalPlayer.isPackageInstalled(preset.androidPackage)
+    }))
+
+    return presets.filter((_, index) => installed[index])
+}
+
 /**
  * Build the final URL to hand to `Linking.openURL`.
  *

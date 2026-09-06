@@ -120,7 +120,8 @@ class MPVLayerRenderer(private val context: Context) : MPVLib.EventObserver, MPV
     private val emulator: Boolean = isEmulator()
     private val requestedHwdec: String = when {
         emulator -> "no"
-        isTv -> "mediacodec,mediacodec-copy"
+        // Use the copy path on TV to avoid direct-surface driver dependencies.
+        isTv -> "mediacodec-copy"
         else -> "mediacodec-copy"
     }
     @Volatile
@@ -799,9 +800,6 @@ class MPVLayerRenderer(private val context: Context) : MPVLib.EventObserver, MPV
         val entry = "$prefix: $message".take(360)
         decoderError = entry
         Log.w(TAG, "[mpv decoder] $entry")
-        if (lower.contains("error") || lower.contains("failed") || lower.contains("cannot") || lower.contains("unable")) {
-            mainHandler.post { delegate?.onError(entry) }
-        }
     }
 
     // -------------------------------------------------------------------

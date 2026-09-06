@@ -14,6 +14,10 @@ export const ExpoExternalPlayer = {
             ? ExpoExternalPlayerModule.openFile(url)
             : ExpoExternalPlayerModule.openFile(url, packageName)
     },
+
+    isPackageInstalled(packageName: string): Promise<boolean> {
+        return ExpoExternalPlayerModule?.isPackageInstalled?.(packageName) ?? Promise.resolve(false)
+    },
 }
 
 export default ExpoExternalPlayer

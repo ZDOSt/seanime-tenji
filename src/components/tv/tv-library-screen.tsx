@@ -35,6 +35,7 @@ import { cleanHtml, mediaTitle } from "@/lib/media-metadata"
 import { getServerLocalEpisodeCount, parseServerLocalAnimeEntry, useIsServerConnected, useServerLocalAnimeRecords } from "@/lib/offline"
 import { filterEntriesByTitle } from "@/lib/utils/filtering"
 import {
+    DEFAULT_TV_HOME_ITEMS,
     getHomeItemOptions,
     getHomeItemStringArrayOption,
     getHomeItemStringOption,
@@ -175,7 +176,7 @@ export function TVLibraryScreen() {
     } = useAnimeLibraryCollection()
 
     const homeItems = React.useMemo(
-        () => serverHomeItems?.length ? normalizeTVHomeItems(serverHomeItems) : null,
+        () => serverHomeItems === undefined ? DEFAULT_TV_HOME_ITEMS : normalizeTVHomeItems(serverHomeItems),
         [serverHomeItems],
     )
     const homeItemTypes = React.useMemo(
@@ -360,7 +361,7 @@ export function TVLibraryScreen() {
         return <TVPageSkeleton hero />
     }
 
-    if (!homeItems && !shelves.length && !continueWatchingList.length && !searching) {
+    if (!homeItems.length && !shelves.length && !continueWatchingList.length && !searching) {
         return (
             <ScrollView style={{ flex: 1, backgroundColor: "#0a0a0a" }}>
                 <View
@@ -433,6 +434,7 @@ export function TVLibraryScreen() {
                     items={homeItems}
                     heroItems={heroItems}
                     trendingHeroItems={trendingHeroItems}
+                    trendingMedia={trendingMedia}
                     recentlyAired={recentlyAired}
                     missedSequels={missedSequels ?? []}
                     continueWatchingList={continueWatchingList}
@@ -523,6 +525,7 @@ type TVHomeContentProps = {
     items: Models_HomeItem[]
     heroItems: TVHeroItem[]
     trendingHeroItems: TVHeroItem[]
+    trendingMedia: AL_BaseAnime[]
     recentlyAired: AL_BaseAnime[]
     missedSequels: AL_BaseAnime[]
     continueWatchingList: ContinueWatchingItem[]
@@ -539,6 +542,7 @@ function TVHomeContent({
     items,
     heroItems,
     trendingHeroItems,
+    trendingMedia,
     recentlyAired,
     missedSequels,
     continueWatchingList,
@@ -550,7 +554,11 @@ function TVHomeContent({
     openContinue,
     scrollHandler,
 }: TVHomeContentProps) {
-    const firstFocusableIndex = React.useMemo(() => items.findIndex(item => {
+    const contentItems = React.useMemo(
+        () => items.filter(item => item.type !== "anime-continue-watching-header"),
+        [items],
+    )
+    const firstFocusableIndex = React.useMemo(() => contentItems.findIndex(item => {
         switch (item.type) {
             case "anime-continue-watching-header":
                 return heroItems.length > 0
@@ -573,7 +581,7 @@ function TVHomeContent({
             default:
                 return false
         }
-    }), [continueWatchingList.length, heroItems.length, missedSequels.length, recentlyAired.length, rawAnimeCollection, shelves, trendingHeroItems.length, items])
+    }), [contentItems, continueWatchingList.length, heroItems.length, missedSequels.length, recentlyAired.length, rawAnimeCollection, shelves, trendingHeroItems.length])
 
     return (
         <Animated.ScrollView
@@ -587,7 +595,12 @@ function TVHomeContent({
             onScroll={scrollHandler}
             scrollEventThrottle={16}
         >
-            {items.map((item, index) => (
+            {heroItems.length > 0 ? (
+                <View style={{ minHeight: tvSize(560) }}>
+                    <TVHeroCarousel items={heroItems} active={isFocused} preferred loading={isLoading} navOnUp />
+                </View>
+            ) : null}
+            {contentItems.map((item, index) => (
                 <TVHomeItemView
                     key={`${item.id}-${item.type}`}
                     item={item}
@@ -595,6 +608,7 @@ function TVHomeContent({
                     navOnUp={index === firstFocusableIndex}
                     heroItems={heroItems}
                     trendingHeroItems={trendingHeroItems}
+                    trendingMedia={trendingMedia}
                     recentlyAired={recentlyAired}
                     missedSequels={missedSequels}
                     continueWatchingList={continueWatchingList}
@@ -622,6 +636,7 @@ function TVHomeItemView({
     navOnUp,
     heroItems,
     trendingHeroItems,
+    trendingMedia,
     recentlyAired,
     missedSequels,
     continueWatchingList,
@@ -634,18 +649,18 @@ function TVHomeItemView({
 }: TVHomeItemViewProps) {
     switch (item.type) {
         case "anime-continue-watching-header":
-            return heroItems.length > 0 ? (
-                <View style={{ minHeight: tvSize(560) }}>
-                    <TVHeroCarousel items={heroItems} active={isFocused} preferred={index === 0} loading={isLoading} navOnUp={navOnUp} />
-                </View>
-            ) : null
+            return null
 
         case "discover-header":
-            return trendingHeroItems.length > 0 ? (
-                <View style={{ minHeight: tvSize(560) }}>
-                    <TVHeroCarousel items={trendingHeroItems} active={isFocused} preferred={index === 0} navOnUp={navOnUp} />
-                </View>
-            ) : null
+            return (
+                <TVShelf
+                    title={homeItemTitle(item)}
+                    media={trendingMedia}
+                    showAudienceScore
+                    first={index === 0}
+                    navOnUp={navOnUp && heroItems.length === 0}
+                />
+            )
 
         case "anime-continue-watching":
             return (

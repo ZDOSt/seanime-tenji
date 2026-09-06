@@ -1,5 +1,6 @@
 import type { MpvVideoOutput } from "expo-mpv-player"
 import React from "react"
+import { Platform } from "react-native"
 import { createMMKV } from "react-native-mmkv"
 
 const storage = createMMKV({ id: "seanime-player-prefs" })
@@ -81,20 +82,31 @@ const DEFAULTS: PlayerPreferences = {
     autoSkipOpEd: false,
     wyzieApiKey: "",
     externalPlayerTemplate: null,
-    androidVideoOutput: "gpu-next",
+    androidVideoOutput: Platform.isTV ? "gpu" : "gpu-next",
     showStats: false,
 }
 
 const STORAGE_KEY = "player-prefs"
+const TV_RENDERER_MIGRATION_KEY = "tv-compatibility-renderer-v1"
 
 /**
  * Read persisted player preferences. Missing keys are filled with defaults.
  */
 export function getPlayerPreferences(): PlayerPreferences {
     const raw = storage.getString(STORAGE_KEY)
-    if (!raw) return { ...DEFAULTS }
+    if (!raw) {
+        if (Platform.isTV) storage.set(TV_RENDERER_MIGRATION_KEY, true)
+        return { ...DEFAULTS }
+    }
     try {
         const parsed = JSON.parse(raw) as Partial<PlayerPreferences>
+        // Apply the TV compatibility default to existing installations once.
+        // Subsequent renderer choices remain under the user's control.
+        if (Platform.isTV && !storage.getBoolean(TV_RENDERER_MIGRATION_KEY)) {
+            parsed.androidVideoOutput = "gpu"
+            storage.set(STORAGE_KEY, JSON.stringify(parsed))
+            storage.set(TV_RENDERER_MIGRATION_KEY, true)
+        }
         return { ...DEFAULTS, ...parsed }
     }
     catch {
