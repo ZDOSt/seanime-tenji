@@ -67,7 +67,6 @@ function isHomeItem(value: unknown): value is Models_HomeItem {
     const item = value as Partial<Models_HomeItem>
     return typeof item.id === "string"
         && typeof item.type === "string"
-        && typeof item.schemaVersion === "number"
 }
 
 /**
@@ -82,6 +81,13 @@ export function normalizeTVHomeItems(items: ReadonlyArray<unknown> | null | unde
         .filter(item => TV_SUPPORTED_HOME_ITEM_TYPES.has(item.type))
         .map(item => {
             const currentVersion = HOME_ITEM_SCHEMA_VERSIONS[item.type]
+            if (typeof item.schemaVersion !== "number") {
+                return {
+                    ...item,
+                    schemaVersion: currentVersion ?? 1,
+                    options: undefined,
+                }
+            }
             if (currentVersion === undefined || item.schemaVersion === currentVersion) return item
 
             return {

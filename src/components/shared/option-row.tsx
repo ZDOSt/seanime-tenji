@@ -1,7 +1,9 @@
 import { cn } from "@/lib/utils"
 import { Ionicons } from "@expo/vector-icons"
 import * as React from "react"
-import { Text, TouchableOpacity, View } from "react-native"
+import { Animated, Platform, Pressable, Text, TouchableOpacity, View } from "react-native"
+import { useTVFocus } from "@/components/tv/tv-focus"
+import { tvSize } from "@/components/tv/tv-scale"
 
 type OptionRowProps = {
     label: string
@@ -10,6 +12,7 @@ type OptionRowProps = {
     onPress: () => void
     className?: string
     monoDetail?: boolean
+    preferred?: boolean
 }
 
 const BRAND_ACCENT = "rgb(97 82 223)"
@@ -42,7 +45,69 @@ export function OptionRow({
     onPress,
     className,
     monoDetail = true,
+    preferred = false,
 }: OptionRowProps) {
+    const focusState = useTVFocus(1.01, label)
+
+    if (Platform.isTV) {
+        return (
+            <Pressable
+                className={cn("flex-row items-center", className)}
+                focusable
+                hasTVPreferredFocus={preferred}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: active }}
+                onFocus={focusState.focus}
+                onBlur={focusState.blur}
+                onPress={onPress}
+                style={{ minHeight: tvSize(68) }}
+            >
+                <Animated.View
+                    style={[
+                        focusState.style,
+                        {
+                            flex: 1,
+                            minHeight: tvSize(68),
+                            flexDirection: "row",
+                            alignItems: "center",
+                            paddingHorizontal: tvSize(22),
+                            gap: tvSize(18),
+                            borderWidth: tvSize(2),
+                            borderColor: focusState.focused ? "#ffffff" : "transparent",
+                            backgroundColor: focusState.focused
+                                ? "rgba(255,255,255,0.12)"
+                                : "transparent",
+                        },
+                    ]}
+                >
+                    <View style={{ flex: 1, gap: tvSize(2) }}>
+                        <Text className="text-white font-semibold" style={{ fontSize: tvSize(21) }}>
+                            {label}
+                        </Text>
+                        {detail ? (
+                            <Text className="text-white/40" style={{ fontSize: tvSize(16) }} numberOfLines={1}>
+                                {detail}
+                            </Text>
+                        ) : null}
+                    </View>
+                    {active ? (
+                        <Ionicons name="checkmark-circle" size={tvSize(28)} color={"#b8b0ff"} />
+                    ) : (
+                        <View
+                            style={{
+                                width: tvSize(28),
+                                height: tvSize(28),
+                                borderRadius: tvSize(14),
+                                borderWidth: tvSize(2),
+                                borderColor: "rgba(255,255,255,0.75)",
+                            }}
+                        />
+                    )}
+                </Animated.View>
+            </Pressable>
+        )
+    }
+
     return (
         <TouchableOpacity
             className={cn("flex-row items-center px-4 py-3.5", className)}

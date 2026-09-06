@@ -120,6 +120,8 @@ class MPVLayerRenderer(private val context: Context) : MPVLib.EventObserver, MPV
     private val emulator: Boolean = isEmulator()
     private val requestedHwdec: String = when {
         emulator -> "no"
+        // Prefer direct Android hardware decoding, with copy-mode fallback for
+        // devices whose decoder cannot export frames to the configured surface.
         isTv -> "mediacodec,mediacodec-copy"
         else -> "mediacodec-copy"
     }
@@ -160,9 +162,15 @@ class MPVLayerRenderer(private val context: Context) : MPVLib.EventObserver, MPV
             }
         }
 
-        // cache & demuxer
-        MPVLib.setOptionString("cache", "auto")
-        MPVLib.setOptionString("cache-secs", "10")
+        // Keep the mobile buffering profile used by the stable Android build.
+        // TVs use a smaller bounded cache to avoid exhausting device memory.
+        if (isTv) {
+            MPVLib.setOptionString("cache", "auto")
+            MPVLib.setOptionString("cache-secs", "10")
+        } else {
+            MPVLib.setOptionString("cache", "yes")
+            MPVLib.setOptionString("demuxer-readahead-secs", "20")
+        }
         MPVLib.setOptionString("cache-pause-initial", "yes")
         MPVLib.setOptionString("demuxer-max-bytes", if (isTv) "75MiB" else "150MiB")
         MPVLib.setOptionString("demuxer-max-back-bytes", if (isTv) "30MiB" else "50MiB")

@@ -86,6 +86,7 @@ export function useAnimeLibraryCollection() {
 
         return [
             lists.find(n => n.type === "CURRENT"),
+            lists.find(n => n.type === "REPEATING"),
             lists.find(n => n.type === "PAUSED"),
             lists.find(n => n.type === "PLANNING"),
             lists.find(n => n.type === "COMPLETED"),
@@ -115,6 +116,7 @@ export function useAnimeLibraryCollection() {
 
         return [
             lists.find(n => n.type === "CURRENT"),
+            lists.find(n => n.type === "REPEATING"),
             lists.find(n => n.type === "PAUSED"),
             lists.find(n => n.type === "PLANNING"),
             lists.find(n => n.type === "COMPLETED"),

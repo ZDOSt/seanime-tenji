@@ -27,6 +27,7 @@ type TVShelfProps = {
     hideProgress?: boolean
     hideLibraryBadge?: boolean
     onMediaPress?: (media: AL_BaseAnime) => void
+    navOnUp?: boolean
 }
 
 export const TVShelf = React.memo(function TVShelf({
@@ -39,6 +40,7 @@ export const TVShelf = React.memo(function TVShelf({
     hideProgress,
     hideLibraryBadge,
     onMediaPress,
+    navOnUp = false,
 }: TVShelfProps) {
     const open = React.useCallback((id: number) => {
         router.push(`/(app)/entry/anime/${id}`)
@@ -58,6 +60,7 @@ export const TVShelf = React.memo(function TVShelf({
                 showAudienceScore={showAudienceScore}
                 hideProgress={hideProgress}
                 hideLibraryBadge={hideLibraryBadge}
+                navOnUp={navOnUp}
                 onPress={() => onMediaPress ? onMediaPress(item) : open(item.id)}
             />
         )
@@ -70,6 +73,7 @@ export const TVShelf = React.memo(function TVShelf({
         onMediaPress,
         open,
         showAudienceScore,
+        navOnUp,
     ])
 
     if (media.length === 0) return null

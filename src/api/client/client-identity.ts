@@ -110,8 +110,10 @@ export function getClientHeaders(): Record<string, string> {
         [CLIENT_PLATFORM_HEADER_NAME]: SERVER_CLIENT_PLATFORM,
     }
 
-    if (clientId && clientIdProof) {
+    if (clientId) {
         headers[CLIENT_ID_HEADER_NAME] = clientId
+    }
+    if (clientId && clientIdProof) {
         headers[CLIENT_ID_PROOF_HEADER_NAME] = clientIdProof
     }
 
@@ -121,8 +123,10 @@ export function getClientHeaders(): Record<string, string> {
 export function addClientQueryParams(searchParams: URLSearchParams) {
     const { clientId, clientIdProof } = getClientIdentity()
 
-    if (clientId && clientIdProof) {
+    if (clientId) {
         searchParams.set(CLIENT_ID_QUERY_PARAM, clientId)
+    }
+    if (clientId && clientIdProof) {
         searchParams.set(CLIENT_ID_PROOF_QUERY_PARAM, clientIdProof)
     }
 

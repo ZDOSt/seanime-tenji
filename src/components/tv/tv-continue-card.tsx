@@ -10,6 +10,7 @@ type Props = {
     onPress: () => void
     preferred?: boolean
     progressPercent?: number
+    navOnUp?: boolean
 }
 
 export const TVContinueCard = React.memo(
@@ -19,6 +20,7 @@ export const TVContinueCard = React.memo(
             onPress,
             preferred,
             progressPercent,
+            navOnUp,
             ...props
         }, ref) {
             const serverStatus = useServerStatus()
@@ -50,6 +52,7 @@ export const TVContinueCard = React.memo(
                     onPress={onPress}
                     preferred={preferred}
                     progressPercent={progressPercent}
+                    navOnUp={navOnUp}
                     filler={episode.episodeMetadata?.isFiller}
                     blurred={spoiler.hideThumbnail}
                     recyclingKey={`${media?.id ?? "episode"}-${episode.episodeNumber}`}

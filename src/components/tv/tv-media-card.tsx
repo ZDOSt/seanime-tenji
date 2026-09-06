@@ -6,7 +6,7 @@ import type {
 } from "@/api/generated/types"
 import { useAnimeLibraryEntryDataValue, useMediaEntryListDataValue } from "@/atoms/anilist-collection.atoms"
 import { useServerStatus } from "@/atoms/server.atoms"
-import { usePreferredFocus, useTVFocus } from "@/components/tv/tv-focus"
+import { usePreferredFocus, useTVFocus, useTVNavigationDestination } from "@/components/tv/tv-focus"
 import { TVScoreBadge } from "@/components/tv/tv-score-badge"
 import { TV, tvSize } from "@/components/tv/tv-scale"
 import { Ionicons } from "@/lib/icons/Ionicons"
@@ -27,6 +27,7 @@ type TVMediaCardProps = {
     showAudienceScore?: boolean
     hideProgress?: boolean
     hideLibraryBadge?: boolean
+    navOnUp?: boolean
 }
 
 export const TVMediaCard = React.memo(function TVMediaCard({
@@ -41,8 +42,10 @@ export const TVMediaCard = React.memo(function TVMediaCard({
     showAudienceScore,
     hideProgress,
     hideLibraryBadge,
+    navOnUp = false,
 }: TVMediaCardProps) {
     const focusState = useTVFocus(1.055, mediaTitle(media))
+    const navDestination = useTVNavigationDestination()
     const serverStatus = useServerStatus()
     const syncedList = useMediaEntryListDataValue("anime", media.id) as Anime_EntryListData | undefined
     const syncedLibrary = useAnimeLibraryEntryDataValue(media.id)
@@ -68,6 +71,7 @@ export const TVMediaCard = React.memo(function TVMediaCard({
             onFocus={focusState.focus}
             onBlur={focusState.blur}
             hasTVPreferredFocus={isPreferred}
+            nextFocusUp={navOnUp ? navDestination : undefined}
             scrollSnapAlign="start"
             accessibilityRole="button"
             accessibilityLabel={title}

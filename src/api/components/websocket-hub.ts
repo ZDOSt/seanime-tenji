@@ -5,7 +5,24 @@ export type WebsocketMessage = Readonly<{
 
 export type WebsocketMessageListener = (message: WebsocketMessage) => void | Promise<void>
 
+export type WebsocketClientMessage = Readonly<{
+    type: string
+    payload?: unknown
+}>
+
 const listeners = new Set<WebsocketMessageListener>()
+let sender: ((message: WebsocketClientMessage) => boolean) | null = null
+
+export function registerWsSender(next: ((message: WebsocketClientMessage) => boolean) | null): () => void {
+    sender = next
+    return () => {
+        if (sender === next) sender = null
+    }
+}
+
+export function sendWsMessage(message: WebsocketClientMessage): boolean {
+    return sender?.(message) ?? false
+}
 
 export function subscribeWsMessage(listener: WebsocketMessageListener): () => void {
     listeners.add(listener)

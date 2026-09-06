@@ -1,4 +1,4 @@
-import { usePreferredFocus, useTVFocus } from "@/components/tv/tv-focus"
+import { usePreferredFocus, useTVFocus, useTVNavigationDestination } from "@/components/tv/tv-focus"
 import { TV, tvSize } from "@/components/tv/tv-scale"
 import { Image } from "expo-image"
 import { LinearGradient } from "expo-linear-gradient"
@@ -19,6 +19,7 @@ export interface TVEpisodeCardProps extends Omit<PressableProps, "onPress"> {
     completed?: boolean
     filler?: boolean
     blurred?: boolean
+    navOnUp?: boolean
 }
 
 export const TVEpisodeCard = React.memo(
@@ -36,10 +37,12 @@ export const TVEpisodeCard = React.memo(
             completed,
             filler,
             blurred,
+            navOnUp = false,
             ...props
         }, ref) {
             const focus = useTVFocus(1.05, title)
             const isPreferred = usePreferredFocus(preferred)
+            const navDestination = useTVNavigationDestination()
             const width = tvSize(410)
             const imageHeight = tvSize(225)
 
@@ -50,6 +53,7 @@ export const TVEpisodeCard = React.memo(
                     onFocus={focus.focus}
                     onBlur={focus.blur}
                     hasTVPreferredFocus={isPreferred}
+                    nextFocusUp={navOnUp ? navDestination : props.nextFocusUp}
                     scrollSnapAlign="start"
                     accessibilityRole="button"
                     accessibilityLabel={`${title}${subtitle ? `, ${subtitle}` : ""}`}

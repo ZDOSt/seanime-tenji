@@ -1,4 +1,4 @@
-import { useTVFocus } from "@/components/tv/tv-focus"
+import { useTVFocus, useTVNavigationRegistration } from "@/components/tv/tv-focus"
 import { TV, tvSize } from "@/components/tv/tv-scale"
 import { IMAGES } from "@/constants/images"
 import Ionicons from "@expo/vector-icons/Ionicons"
@@ -38,22 +38,18 @@ const ITEMS = [
     },
 ]
 
-function NavItem({
-    item,
-    active,
-    pending,
-    onPress,
-}: {
+const NavItem = React.forwardRef<React.ElementRef<typeof Pressable>, {
     item: (typeof ITEMS)[number]
     active: boolean
     pending: boolean
     onPress: () => void
-}) {
+}>(({ item, active, pending, onPress }, ref) => {
     const focusState = useTVFocus(1.05, item.label)
     const selected = active || pending
 
     return (
         <Pressable
+            ref={ref}
             onPress={onPress}
             onFocus={focusState.focus}
             onBlur={focusState.blur}
@@ -110,12 +106,15 @@ function NavItem({
             )}
         </Pressable>
     )
-}
+    })
+
+NavItem.displayName = "TVNavItem"
 
 export function TVNavBar() {
     const segments = useSegments()
     const routeKey = segments.join("/")
     const [pending, setPending] = React.useState<string | null>(null)
+    const registerDestination = useTVNavigationRegistration()
     const isActive = React.useCallback((key: (typeof ITEMS)[number]["key"]) => {
         if (key === "discover") return routeKey.includes("discover")
         if (key === "lists") return routeKey.includes("my-lists")
@@ -206,6 +205,7 @@ export function TVNavBar() {
                     {ITEMS.map(item => (
                         <NavItem
                             key={item.label}
+                            ref={isActive(item.key) ? registerDestination : undefined}
                             item={item}
                             active={isActive(item.key)}
                             pending={pending === item.key}

@@ -47,7 +47,12 @@ test("empty or unsupported layouts use the TV fallback", () => {
         item({ type: "manga-library", schemaVersion: 2 }),
         null,
         { id: "missing-schema", type: "anime-carousel" },
-    ]), DEFAULT_TV_HOME_ITEMS)
+    ]), [{
+        id: "missing-schema",
+        type: "anime-carousel",
+        schemaVersion: 3,
+        options: undefined,
+    }])
 })
 
 test("option helpers trim strings and discard invalid array entries", () => {

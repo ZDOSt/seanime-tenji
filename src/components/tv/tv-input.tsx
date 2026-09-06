@@ -1,4 +1,4 @@
-import { usePreferredFocus, useTVFocus } from "@/components/tv/tv-focus"
+import { usePreferredFocus, useTVFocus, useTVNavigationDestination } from "@/components/tv/tv-focus"
 import { tvSize } from "@/components/tv/tv-scale"
 import * as React from "react"
 import {
@@ -17,6 +17,7 @@ type TVInputProps = TextInputProps & {
     floating?: boolean
     icon?: React.ReactNode
     preferred?: boolean
+    navOnUp?: boolean
 }
 
 export type TVInputHandle = {
@@ -27,9 +28,10 @@ export type TVInputHandle = {
 }
 
 export const TVInput = React.forwardRef<TVInputHandle, TVInputProps>(
-    ({ style, containerStyle, floating, icon, preferred, onFocus, onBlur, ...props }, ref) => {
+    ({ style, containerStyle, floating, icon, preferred, navOnUp = false, onFocus, onBlur, ...props }, ref) => {
         const focusState = useTVFocus(1.02, props.placeholder || "TextInput")
         const isPreferred = usePreferredFocus(preferred)
+        const navDestination = useTVNavigationDestination()
         const [editing, setEditing] = React.useState(false)
         const inputRef = React.useRef<TextInput>(null)
         const fieldRef = React.useRef<React.ElementRef<typeof Pressable>>(null)
@@ -79,6 +81,7 @@ export const TVInput = React.forwardRef<TVInputHandle, TVInputProps>(
                 ref={fieldRef}
                 focusable={!editing}
                 hasTVPreferredFocus={isPreferred}
+                nextFocusUp={navOnUp ? navDestination : undefined}
                 onPress={edit}
                 onFocus={focusState.focus}
                 onBlur={focusState.blur}

@@ -1,5 +1,6 @@
 import type { AnilistListAnime_Variables } from "@/api/generated/endpoint.types"
 import type {
+    AL_AnimeCollection,
     AL_BaseAnime,
     AL_MediaFormat,
     AL_MediaSeason,
@@ -8,7 +9,7 @@ import type {
     Continuity_WatchHistory,
     Models_HomeItem,
 } from "@/api/generated/types"
-import { useAnilistListAnime, useAnilistListMissedSequels } from "@/api/hooks/anilist.hooks"
+import { useAnilistListAnime, useAnilistListMissedSequels, useGetRawAnimeCollection } from "@/api/hooks/anilist.hooks"
 import { getEpisodePercentageComplete, useGetContinuityWatchHistory } from "@/api/hooks/continuity.hooks"
 import { useGetHomeItems } from "@/api/hooks/status.hooks"
 import { animeEntryPlaybackIntentAtom, createAnimeEntryPlaybackIntent } from "@/atoms/anime-entry.atoms"
@@ -34,6 +35,7 @@ import { cleanHtml, mediaTitle } from "@/lib/media-metadata"
 import { getServerLocalEpisodeCount, parseServerLocalAnimeEntry, useIsServerConnected, useServerLocalAnimeRecords } from "@/lib/offline"
 import { filterEntriesByTitle } from "@/lib/utils/filtering"
 import {
+    DEFAULT_TV_HOME_ITEMS,
     getHomeItemOptions,
     getHomeItemStringArrayOption,
     getHomeItemStringOption,
@@ -136,6 +138,7 @@ function getAnimeCarouselVariables(item: Models_HomeItem): AnilistListAnime_Vari
 
 const LABELS: Record<string, string> = {
     CURRENT: "Currently watching",
+    REPEATING: "Repeating",
     PAUSED: "Paused",
     PLANNING: "Planning",
     COMPLETED: "Completed",
@@ -173,7 +176,7 @@ export function TVLibraryScreen() {
     } = useAnimeLibraryCollection()
 
     const homeItems = React.useMemo(
-        () => serverHomeItems?.length ? normalizeTVHomeItems(serverHomeItems) : null,
+        () => serverHomeItems === undefined ? DEFAULT_TV_HOME_ITEMS : normalizeTVHomeItems(serverHomeItems),
         [serverHomeItems],
     )
     const homeItemTypes = React.useMemo(
@@ -183,9 +186,11 @@ export function TVLibraryScreen() {
     const needsTrending = homeItemTypes.has("discover-header")
     const needsRecent = homeItemTypes.has("aired-recently")
     const needsMissedSequels = homeItemTypes.has("missed-sequels")
+    const needsMyLists = homeItemTypes.has("my-lists")
     const { data: trendingData } = useDiscoverTrendingAnime(needsTrending)
     const { media: recentlyAired } = useDiscoverRecentlyAired(needsRecent)
     const { data: missedSequels } = useAnilistListMissedSequels(needsMissedSequels)
+    const { data: rawAnimeCollection } = useGetRawAnimeCollection(needsMyLists)
     const trendingMedia = React.useMemo(
         () => trendingData?.Page?.media?.filter(Boolean) as AL_BaseAnime[] ?? [],
         [trendingData?.Page?.media],
@@ -344,18 +349,19 @@ export function TVLibraryScreen() {
         <TVContinueCard
             item={item}
             preferred={index === 0}
+            navOnUp={heroItems.length === 0}
             progressPercent={item.episode.baseAnime?.id
                 ? getEpisodePercentageComplete(watchHistory, item.episode.baseAnime.id, item.episode.progressNumber)
                 : 0}
             onPress={() => openContinue(item)}
         />
-    ), [openContinue, watchHistory])
+    ), [heroItems.length, openContinue, watchHistory])
 
     if (isLoading && isConnected) {
         return <TVPageSkeleton hero />
     }
 
-    if (!homeItems && !shelves.length && !continueWatchingList.length && !searching) {
+    if (!homeItems.length && !shelves.length && !continueWatchingList.length && !searching) {
         return (
             <ScrollView style={{ flex: 1, backgroundColor: "#0a0a0a" }}>
                 <View
@@ -402,6 +408,7 @@ export function TVLibraryScreen() {
                         autoCapitalize="none"
                         returnKeyType="search"
                         preferred={heroItems.length === 0}
+                        navOnUp
                         floating
                         containerStyle={{ borderRadius: tvSize(99) }}
                         icon={(
@@ -427,11 +434,13 @@ export function TVLibraryScreen() {
                     items={homeItems}
                     heroItems={heroItems}
                     trendingHeroItems={trendingHeroItems}
+                    trendingMedia={trendingMedia}
                     recentlyAired={recentlyAired}
                     missedSequels={missedSequels ?? []}
                     continueWatchingList={continueWatchingList}
                     watchHistory={watchHistory}
                     shelves={shelves}
+                    rawAnimeCollection={rawAnimeCollection}
                     isFocused={isFocused}
                     isLoading={isLoading}
                     openContinue={openContinue}
@@ -455,7 +464,7 @@ export function TVLibraryScreen() {
                                 minHeight: heroItems.length > 0 || isLoading ? tvSize(560) : tvSize(32),
                             }}
                         >
-                            <TVHeroCarousel items={heroItems} active={isFocused} preferred loading={isLoading} />
+                            <TVHeroCarousel items={heroItems} active={isFocused} preferred loading={isLoading} navOnUp />
                         </View>
 
                         {continueWatchingList.length > 0 ? (
@@ -503,6 +512,7 @@ export function TVLibraryScreen() {
                             hideProgress={shelf.hideProgress}
                             onMediaPress={shelf.onMediaPress}
                             first={heroItems.length === 0 && index === 0}
+                            navOnUp={heroItems.length === 0 && continueWatchingList.length === 0 && index === 0}
                         />
                     ))}
                 </Animated.ScrollView>
@@ -515,11 +525,13 @@ type TVHomeContentProps = {
     items: Models_HomeItem[]
     heroItems: TVHeroItem[]
     trendingHeroItems: TVHeroItem[]
+    trendingMedia: AL_BaseAnime[]
     recentlyAired: AL_BaseAnime[]
     missedSequels: AL_BaseAnime[]
     continueWatchingList: ContinueWatchingItem[]
     watchHistory: Continuity_WatchHistory | undefined
     shelves: Shelf[]
+    rawAnimeCollection?: AL_AnimeCollection
     isFocused: boolean
     isLoading: boolean
     openContinue: (item: ContinueWatchingItem) => void
@@ -530,16 +542,47 @@ function TVHomeContent({
     items,
     heroItems,
     trendingHeroItems,
+    trendingMedia,
     recentlyAired,
     missedSequels,
     continueWatchingList,
     watchHistory,
     shelves,
+    rawAnimeCollection,
     isFocused,
     isLoading,
     openContinue,
     scrollHandler,
 }: TVHomeContentProps) {
+    const contentItems = React.useMemo(
+        () => items.filter(item => item.type !== "anime-continue-watching-header"),
+        [items],
+    )
+    const firstFocusableIndex = React.useMemo(() => contentItems.findIndex(item => {
+        switch (item.type) {
+            case "anime-continue-watching-header":
+                return heroItems.length > 0
+            case "discover-header":
+                return trendingHeroItems.length > 0
+            case "anime-continue-watching":
+                return continueWatchingList.length > 0
+            case "anime-library":
+                return getLibraryShelvesForHomeItem(item, shelves).some(shelf => shelf.media.length > 0)
+            case "my-lists":
+                return getRawListShelves(item, rawAnimeCollection).some(shelf => shelf.media.length > 0)
+            case "local-anime-library":
+                return shelves.some(shelf => shelf.key === "server-local" && shelf.media.length > 0)
+            case "aired-recently":
+                return recentlyAired.length > 0
+            case "missed-sequels":
+                return missedSequels.length > 0
+            case "anime-carousel":
+                return true
+            default:
+                return false
+        }
+    }), [contentItems, continueWatchingList.length, heroItems.length, missedSequels.length, recentlyAired.length, rawAnimeCollection, shelves, trendingHeroItems.length])
+
     return (
         <Animated.ScrollView
             style={{ flex: 1 }}
@@ -552,18 +595,26 @@ function TVHomeContent({
             onScroll={scrollHandler}
             scrollEventThrottle={16}
         >
-            {items.map((item, index) => (
+            {heroItems.length > 0 ? (
+                <View style={{ minHeight: tvSize(560) }}>
+                    <TVHeroCarousel items={heroItems} active={isFocused} preferred loading={isLoading} navOnUp />
+                </View>
+            ) : null}
+            {contentItems.map((item, index) => (
                 <TVHomeItemView
                     key={`${item.id}-${item.type}`}
                     item={item}
                     index={index}
+                    navOnUp={index === firstFocusableIndex}
                     heroItems={heroItems}
                     trendingHeroItems={trendingHeroItems}
+                    trendingMedia={trendingMedia}
                     recentlyAired={recentlyAired}
                     missedSequels={missedSequels}
                     continueWatchingList={continueWatchingList}
                     watchHistory={watchHistory}
                     shelves={shelves}
+                    rawAnimeCollection={rawAnimeCollection}
                     isFocused={isFocused}
                     isLoading={isLoading}
                     openContinue={openContinue}
@@ -576,36 +627,40 @@ function TVHomeContent({
 type TVHomeItemViewProps = Omit<TVHomeContentProps, "items" | "scrollHandler"> & {
     item: Models_HomeItem
     index: number
+    navOnUp: boolean
 }
 
 function TVHomeItemView({
     item,
     index,
+    navOnUp,
     heroItems,
     trendingHeroItems,
+    trendingMedia,
     recentlyAired,
     missedSequels,
     continueWatchingList,
     watchHistory,
     shelves,
+    rawAnimeCollection,
     isFocused,
     isLoading,
     openContinue,
 }: TVHomeItemViewProps) {
     switch (item.type) {
         case "anime-continue-watching-header":
-            return heroItems.length > 0 ? (
-                <View style={{ minHeight: tvSize(560) }}>
-                    <TVHeroCarousel items={heroItems} active={isFocused} preferred={index === 0} loading={isLoading} />
-                </View>
-            ) : null
+            return null
 
         case "discover-header":
-            return trendingHeroItems.length > 0 ? (
-                <View style={{ minHeight: tvSize(560) }}>
-                    <TVHeroCarousel items={trendingHeroItems} active={isFocused} preferred={index === 0} />
-                </View>
-            ) : null
+            return (
+                <TVShelf
+                    title={homeItemTitle(item)}
+                    media={trendingMedia}
+                    showAudienceScore
+                    first={index === 0}
+                    navOnUp={navOnUp && heroItems.length === 0}
+                />
+            )
 
         case "anime-continue-watching":
             return (
@@ -614,11 +669,11 @@ function TVHomeItemView({
                     watchHistory={watchHistory}
                     onPress={openContinue}
                     title={homeItemTitle(item)}
+                    navOnUp={navOnUp}
                 />
             )
 
-        case "anime-library":
-        case "my-lists": {
+        case "anime-library": {
             const selectedShelves = getLibraryShelvesForHomeItem(item, shelves)
             return (
                 <View style={{ gap: TV.sectionGap }}>
@@ -633,6 +688,25 @@ function TVHomeItemView({
                             hideProgress={shelf.hideProgress}
                             onMediaPress={shelf.onMediaPress}
                             first={index === 0 && shelfIndex === 0}
+                            navOnUp={navOnUp && shelfIndex === 0}
+                        />
+                    ))}
+                </View>
+            )
+        }
+
+        case "my-lists": {
+            const selectedShelves = getRawListShelves(item, rawAnimeCollection)
+            return (
+                <View style={{ gap: TV.sectionGap }}>
+                    {selectedShelves.map((shelf, shelfIndex) => (
+                        <TVShelf
+                            key={`${item.id}-${shelf.key}`}
+                            title={shelf.title}
+                            media={shelf.media}
+                            hideLibraryBadge
+                            first={index === 0 && shelfIndex === 0}
+                            navOnUp={navOnUp && shelfIndex === 0}
                         />
                     ))}
                 </View>
@@ -652,6 +726,7 @@ function TVHomeItemView({
                     hideLibraryBadge
                     onMediaPress={localShelf.onMediaPress}
                     first={index === 0}
+                    navOnUp={navOnUp}
                 />
             )
         }
@@ -663,6 +738,7 @@ function TVHomeItemView({
                     media={recentlyAired}
                     showAudienceScore
                     first={index === 0}
+                    navOnUp={navOnUp}
                 />
             )
 
@@ -673,11 +749,12 @@ function TVHomeItemView({
                     media={missedSequels}
                     showAudienceScore
                     first={index === 0}
+                    navOnUp={navOnUp}
                 />
             )
 
         case "anime-carousel":
-            return <TVHomeAnimeCarousel item={item} first={index === 0} />
+            return <TVHomeAnimeCarousel item={item} first={index === 0} navOnUp={navOnUp} />
 
         case "centered-title": {
             const title = getHomeItemStringOption(item, "text")
@@ -704,11 +781,34 @@ function TVHomeItemView({
 
 function getLibraryShelvesForHomeItem(item: Models_HomeItem, shelves: Shelf[]) {
     const statuses = getHomeItemStringArrayOption(item, "statuses")
-    const libraryShelves = shelves.filter(shelf => ["CURRENT", "PAUSED", "PLANNING", "COMPLETED", "DROPPED"].includes(shelf.key))
+    const libraryShelves = shelves.filter(shelf => ["CURRENT", "REPEATING", "PAUSED", "PLANNING", "COMPLETED", "DROPPED"].includes(shelf.key))
 
     if (!statuses.length) return libraryShelves
 
     return libraryShelves.filter(shelf => statuses.includes(shelf.key))
+}
+
+function getRawListShelves(item: Models_HomeItem, collection: AL_AnimeCollection | undefined): Shelf[] {
+    const options = getHomeItemOptions(item)
+    if (options.type === "manga") return []
+
+    const statuses = getHomeItemStringArrayOption(item, "statuses")
+    const customListName = getHomeItemStringOption(item, "customListName")
+    const lists = collection?.MediaListCollection?.lists ?? []
+
+    if (customListName) {
+        const custom = lists.find(list => list.name?.trim() === customListName)
+        const media = custom?.entries?.map(entry => entry.media).filter(Boolean) as AL_BaseAnime[] ?? []
+        return media.length > 0 ? [{ key: `custom-${customListName}`, title: customListName, media }] : []
+    }
+
+    return lists.flatMap(list => {
+        const status = list.status
+        if (list.isCustomList || !status || (statuses.length > 0 && !statuses.includes(status))) return []
+        const media = list.entries?.map(entry => entry.media).filter(Boolean) as AL_BaseAnime[] ?? []
+        if (media.length === 0) return []
+        return [{ key: status, title: LABELS[status] ?? status, media, hideLibraryBadge: true }]
+    })
 }
 
 function TVContinueShelf({
@@ -716,22 +816,25 @@ function TVContinueShelf({
     watchHistory,
     onPress,
     title,
+    navOnUp = false,
 }: {
     items: ContinueWatchingItem[]
     watchHistory: Continuity_WatchHistory | undefined
     onPress: (item: ContinueWatchingItem) => void
     title: string
+    navOnUp?: boolean
 }) {
     const renderItem = React.useCallback(({ item, index }: { item: ContinueWatchingItem; index: number }) => (
         <TVContinueCard
             item={item}
             preferred={index === 0}
+            navOnUp={navOnUp}
             progressPercent={item.episode.baseAnime?.id
                 ? getEpisodePercentageComplete(watchHistory, item.episode.baseAnime.id, item.episode.progressNumber)
                 : 0}
             onPress={() => onPress(item)}
         />
-    ), [onPress, watchHistory])
+    ), [navOnUp, onPress, watchHistory])
 
     if (items.length === 0) return null
 
@@ -765,7 +868,7 @@ function TVContinueShelf({
     )
 }
 
-function TVHomeAnimeCarousel({ item, first }: { item: Models_HomeItem; first: boolean }) {
+function TVHomeAnimeCarousel({ item, first, navOnUp = false }: { item: Models_HomeItem; first: boolean; navOnUp?: boolean }) {
     const variables = React.useMemo(() => getAnimeCarouselVariables(item), [item])
     const { data, isLoading } = useAnilistListAnime(variables, true)
     const media = React.useMemo(
@@ -781,6 +884,7 @@ function TVHomeAnimeCarousel({ item, first }: { item: Models_HomeItem; first: bo
             media={media}
             showAudienceScore
             first={first}
+            navOnUp={navOnUp}
         />
     )
 }

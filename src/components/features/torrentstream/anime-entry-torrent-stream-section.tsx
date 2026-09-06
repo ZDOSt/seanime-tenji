@@ -22,6 +22,8 @@ import { TorrentStreamPickerSheet } from "./torrent-stream-picker-sheet"
 import { TorrentStreamView } from "./torrent-stream-view"
 import { TVPillButton, TV, tvSize, TVTorrentStreamPickerDrawer } from "@/components/tv"
 import { useTorrentStreamController } from "./use-torrent-stream-controller"
+import { AioStreamsResultPicker } from "@/components/features/aiostreams/aiostreams-result-picker"
+import { useAioStreamsPluginController } from "@/components/features/aiostreams/use-aiostreams-plugin-controller"
 
 type AnimeEntryTorrentStreamSectionProps = {
     entry: Anime_Entry
@@ -29,6 +31,7 @@ type AnimeEntryTorrentStreamSectionProps = {
 
 export function AnimeEntryTorrentStreamSection({ entry }: AnimeEntryTorrentStreamSectionProps) {
     const torrentStream = useTorrentStreamController({ entry })
+    const aioStreams = useAioStreamsPluginController(entry)
     const [playbackIntent, setPlaybackIntent] = useAtom(animeEntryPlaybackIntentAtom)
     const progress = entry.listData?.progress ?? 0
     const sessionMode = useAtomValue(streamSessionModeAtom)
@@ -50,6 +53,11 @@ export function AnimeEntryTorrentStreamSection({ entry }: AnimeEntryTorrentStrea
         restoreFocusRef.current = true
         torrentStream.stopCurrentStream()
     }, [torrentStream.stopCurrentStream])
+
+    const handleEpisodePress = React.useCallback((episode: Parameters<typeof torrentStream.handleEpisodePress>[0]) => {
+        if (aioStreams.request(episode)) return
+        torrentStream.handleEpisodePress(episode)
+    }, [aioStreams.request, torrentStream.handleEpisodePress])
 
     React.useEffect(() => {
         const wasVisible = statusVisibleRef.current
@@ -308,7 +316,7 @@ export function AnimeEntryTorrentStreamSection({ entry }: AnimeEntryTorrentStrea
                     episodes={torrentStream.episodes}
                     progress={progress}
                     selectedEpisodeNumber={torrentStream.selectedEpisodeNumber ?? 0}
-                    onEpisodePress={torrentStream.handleEpisodePress}
+                    onEpisodePress={handleEpisodePress}
                     isEpisodeSelectionLocked={torrentStream.isEpisodeSelectionLocked}
                     loadingEpisodeNumber={torrentStream.loadingEpisodeNumber}
                     autoSelect={torrentStream.autoSelect}
@@ -384,6 +392,7 @@ export function AnimeEntryTorrentStreamSection({ entry }: AnimeEntryTorrentStrea
                     availableModes={torrentStream.availableModes}
                     onSelectStreamMode={torrentStream.setStreamMode}
                     onSelectEpisodeNumber={torrentStream.setSelectedEpisodeNumber}
+                    autoSelectEnabled={torrentStream.autoSelect}
                 />
             )}
 
@@ -417,6 +426,7 @@ export function AnimeEntryTorrentStreamSection({ entry }: AnimeEntryTorrentStrea
                     onSelectSearchMode={torrentStream.setSearchMode}
                     torrentCache={torrentStream.torrentCache}
                     torrentMetadataByInfoHash={torrentStream.torrentMetadataByInfoHash}
+                    autoSelectEnabled={torrentStream.autoSelect}
 
                     providerExtensions={torrentStream.providerExtensions}
                     selectedProviderId={torrentStream.selectedProviderId}
@@ -433,6 +443,19 @@ export function AnimeEntryTorrentStreamSection({ entry }: AnimeEntryTorrentStrea
                     onRefetchSearch={torrentStream.refetchSearch}
                 />
             )}
+
+            <AioStreamsResultPicker
+                open={aioStreams.open}
+                loading={aioStreams.loading}
+                title={aioStreams.title}
+                results={aioStreams.results}
+                error={aioStreams.error}
+                onClose={aioStreams.close}
+                onSelect={(result) => aioStreams.select(result, (p2pResult, episode) => {
+                    aioStreams.close()
+                    torrentStream.startPluginResult(p2pResult, episode)
+                })}
+            />
         </>
     )
 }

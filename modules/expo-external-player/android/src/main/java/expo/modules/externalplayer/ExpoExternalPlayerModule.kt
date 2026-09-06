@@ -86,5 +86,15 @@ class ExpoExternalPlayerModule : Module() {
         AsyncFunction("openFile") { url: String, packageName: String?, promise: Promise ->
             promise.resolve(ExpoExternalPlayerLauncher.open(context, url, packageName))
         }
+
+        AsyncFunction("isPackageInstalled") { packageName: String, promise: Promise ->
+            val installed = try {
+                context.packageManager.getPackageInfo(packageName, 0)
+                true
+            } catch (_: Exception) {
+                false
+            }
+            promise.resolve(installed)
+        }
     }
 }

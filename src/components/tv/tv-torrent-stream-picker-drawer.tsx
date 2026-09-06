@@ -70,6 +70,7 @@ type TVTorrentStreamPickerDrawerProps = {
     searchQuery: string;
     onUpdateSearchQuery: (query: string) => void;
     onRefetchSearch: () => void;
+    autoSelectEnabled?: boolean;
 };
 
 const DRAWER_WIDTH = tvSize(650);
@@ -214,6 +215,7 @@ export function TVTorrentStreamPickerDrawer({
     searchQuery,
     onUpdateSearchQuery,
     onRefetchSearch,
+    autoSelectEnabled = true,
 }: TVTorrentStreamPickerDrawerProps) {
     const [localQuery, setLocalQuery] = React.useState(searchQuery);
     const inputRef = React.useRef<TVInputHandle>(null);
@@ -308,11 +310,11 @@ export function TVTorrentStreamPickerDrawer({
         if (isStarting) return "Starting...";
         if (pickerStage === "files") return "Stream selected file";
         if (!selectedTorrent) {
-            return "Auto select now";
+            return autoSelectEnabled ? "Auto select now" : "Select a release";
         }
         if (selectedTorrent.isBatch) return "Choose file";
         return "Start selected";
-    }, [isStarting, pickerStage, selectedTorrent, streamMode]);
+    }, [autoSelectEnabled, isStarting, pickerStage, selectedTorrent, streamMode]);
 
     const previews = React.useMemo(
         () => [...(filePreviews ?? [])].sort(
@@ -540,6 +542,7 @@ export function TVTorrentStreamPickerDrawer({
                             isSearching
                             || isStarting
                             || !selectedEpisode
+                            || (pickerStage === "torrents" && !selectedTorrent && !autoSelectEnabled)
                         }
                     />
                 </View>

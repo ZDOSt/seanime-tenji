@@ -2,10 +2,10 @@ import { OptionRow } from "@/components/shared/option-row"
 import { RowDivider } from "@/components/shared/row-divider"
 import { Surface } from "@/components/shared/surface"
 import { SeaBottomSheet } from "@/components/ui/bottom-sheet"
-import { type ExternalPlayerPreset, getPlatformExternalPlayers } from "@/lib/player/external-players"
+import { type ExternalPlayerPreset, getInstalledExternalPlayers, getPlatformExternalPlayers } from "@/lib/player/external-players"
 import { getPlayerPreferences, setPlayerPreferences } from "@/lib/player/player-preferences"
 import React from "react"
-import { Text } from "react-native"
+import { Platform, Text } from "react-native"
 
 const CUSTOM_ID = "__custom__"
 
@@ -15,7 +15,8 @@ type ExternalPlayerPickerSheetProps = {
 }
 
 export function ExternalPlayerPickerSheet({ open, onOpenChange }: ExternalPlayerPickerSheetProps) {
-    const presets = React.useMemo(() => getPlatformExternalPlayers(), [])
+    const platformPresets = React.useMemo(() => getPlatformExternalPlayers(), [])
+    const [presets, setPresets] = React.useState<ExternalPlayerPreset[]>(Platform.OS === "android" ? [] : platformPresets)
 
     const [selected, setSelected] = React.useState<string | null>(null)
     const [customTemplate, setCustomTemplate] = React.useState("")
@@ -23,24 +24,27 @@ export function ExternalPlayerPickerSheet({ open, onOpenChange }: ExternalPlayer
     // load persisted values when sheet opens
     React.useEffect(() => {
         if (!open) return
+        let cancelled = false
+        void getInstalledExternalPlayers().then(installed => {
+            if (!cancelled) setPresets(installed)
+        }).catch(() => {
+            if (!cancelled && Platform.OS === "android") setPresets([])
+        })
         const prefs = getPlayerPreferences()
         const template = prefs.externalPlayerTemplate
 
         if (!template) {
             setSelected(null)
             setCustomTemplate("")
-            return
-        }
-
-        const match = presets.find(p => p.urlTemplate === template)
-        if (match) {
-            setSelected(match.id)
-            setCustomTemplate("")
         } else {
-            setSelected(CUSTOM_ID)
-            setCustomTemplate(template)
+            const match = platformPresets.find(p => p.urlTemplate === template)
+            setSelected(match?.id ?? CUSTOM_ID)
+            setCustomTemplate(match ? "" : template)
         }
-    }, [open, presets])
+        return () => {
+            cancelled = true
+        }
+    }, [open, platformPresets])
 
     const handleSelect = (preset: ExternalPlayerPreset | null) => {
         if (preset === null) {
@@ -82,6 +86,7 @@ export function ExternalPlayerPickerSheet({ open, onOpenChange }: ExternalPlayer
                 <OptionRow
                     label="In-App player (mpv)"
                     active={selected === null}
+                    preferred={selected === null}
                     onPress={() => handleSelect(null)}
                 />
             </Surface>
@@ -96,6 +101,7 @@ export function ExternalPlayerPickerSheet({ open, onOpenChange }: ExternalPlayer
                                 label={preset.name}
                                 detail={preset.urlTemplate}
                                 active={selected === preset.id}
+                                preferred={selected === preset.id}
                                 onPress={() => handleSelect(preset)}
                             />
                         </React.Fragment>

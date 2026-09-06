@@ -2,6 +2,7 @@ package `is`.xyz.mpv
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.util.Log
 import android.view.Surface
 
 /**
@@ -16,8 +17,13 @@ import android.view.Surface
 object MPVLib {
     init {
         val libs = arrayOf("mpv", "player")
-        for (lib in libs) {
-            System.loadLibrary(lib)
+        try {
+            for (lib in libs) {
+                System.loadLibrary(lib)
+            }
+        } catch (error: Throwable) {
+            Log.e("MPVLib", "Could not load native mpv libraries", error)
+            throw error
         }
     }
 

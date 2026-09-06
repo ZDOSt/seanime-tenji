@@ -25,6 +25,7 @@ import expo.modules.kotlin.views.ExpoView
 private const val TAG = "MpvPlayerView"
 
 data class VideoLoadConfig(
+    val sourceId: String? = null,
     val url: String,
     val headers: Map<String, String>? = null,
     val externalSubtitles: List<Pair<String, String?>>? = null,
@@ -47,6 +48,7 @@ class MpvPlayerView(context: Context, appContext: AppContext) : ExpoView(context
     private var pipController: PiPController? = null
 
     private var currentUrl: String? = null
+    private var currentSourceId: String? = null
     private var cachedPosition: Double = 0.0
     private var cachedDuration: Double = 0.0
     private var intendedPlayState: Boolean = false
@@ -142,7 +144,8 @@ class MpvPlayerView(context: Context, appContext: AppContext) : ExpoView(context
     }
 
     fun stageVideo(config: VideoLoadConfig) {
-        if (config.url == currentUrl || config.url == pendingConfig?.url) return
+        if (config.url == currentUrl && config.sourceId == currentSourceId) return
+        if (config.url == pendingConfig?.url && config.sourceId == pendingConfig?.sourceId) return
         pendingConfig = config
         canApplyPendingSource = false
     }
@@ -154,8 +157,16 @@ class MpvPlayerView(context: Context, appContext: AppContext) : ExpoView(context
         }
 
         if (!rendererStarted) {
-            renderer?.start()
-            rendererStarted = true
+            try {
+                renderer?.start()
+                rendererStarted = true
+            } catch (error: Throwable) {
+                val message = describeError(error)
+                Log.e(TAG, "Could not initialize native player", error)
+                onError(mapOf("error" to message))
+                canApplyPendingSource = false
+                return
+            }
             surfaceView.holder.surface?.takeIf { surfaceReady && it.isValid }?.let { surface ->
                 renderer?.attachSurface(surface)
                 syncSurfaceSize()
@@ -164,6 +175,23 @@ class MpvPlayerView(context: Context, appContext: AppContext) : ExpoView(context
 
         canApplyPendingSource = true
         applyPendingSourceR()
+    }
+
+    private fun describeError(error: Throwable): String {
+        val parts = mutableListOf<String>()
+        val seen = mutableSetOf<Throwable>()
+        var current: Throwable? = error
+
+        while (current != null && seen.add(current)) {
+            val detail = current.message?.trim()
+            val label = current::class.java.simpleName
+            parts += if (detail.isNullOrEmpty()) label else "$label: $detail"
+            current = current.cause
+        }
+
+        return parts.joinToString("; ").take(1200).ifBlank {
+            "Unknown player initialization error"
+        }
     }
 
     private fun applyPendingSourceR() {
@@ -175,6 +203,7 @@ class MpvPlayerView(context: Context, appContext: AppContext) : ExpoView(context
 
     private fun loadVideoInternal(config: VideoLoadConfig) {
         currentUrl = config.url
+        currentSourceId = config.sourceId
         cachedPosition = 0.0
         cachedDuration = 0.0
         dispatchedPaused = null
@@ -508,6 +537,7 @@ class MpvPlayerView(context: Context, appContext: AppContext) : ExpoView(context
         pipRecoveryPending = false
         surfaceReady = false
         currentUrl = null
+        currentSourceId = null
         rendererStarted = false
         renderer = null
     }

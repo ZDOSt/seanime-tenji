@@ -85,6 +85,7 @@ class ExpoMpvPlayerModule : Module() {
             Prop("source") { view: MpvPlayerView, source: Map<String, Any?>? ->
                 if (source == null) return@Prop
                 val url = source["url"] as? String ?: return@Prop
+                val sourceId = source["id"] as? String
 
                 val headers = (source["headers"] as? Map<*, *>)?.mapNotNull { (k, v) ->
                     val key = k as? String ?: return@mapNotNull null
@@ -103,6 +104,7 @@ class ExpoMpvPlayerModule : Module() {
                 val autoplay = (source["autoplay"] as? Boolean) ?: true
 
                 val config = VideoLoadConfig(
+                    sourceId = sourceId,
                     url = url,
                     headers = headers,
                     externalSubtitles = externalSubtitles,
