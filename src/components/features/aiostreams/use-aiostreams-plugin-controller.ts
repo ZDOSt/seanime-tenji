@@ -34,6 +34,7 @@ type PluginState = {
     error?: string | null
     episodeInfo?: string
     sessionId?: string
+    requestId?: string | null
 }
 
 const EXTENSION_ID = "aiostreams-plugin"
@@ -57,7 +58,7 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
     const [error, setError] = React.useState<string | null>(null)
     const [title, setTitle] = React.useState("AIOStreams")
     const pendingEpisode = React.useRef<Anime_Episode | null>(null)
-    const requestToken = React.useRef(0)
+    const requestToken = React.useRef<string | null>(null)
     const startOnlinePlayback = useStartOnlineStreamPlayback()
 
     React.useEffect(() => {
@@ -69,10 +70,10 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
             const state = payload.value as PluginState
             const requested = requestToken.current
             if (!requested || !open) return
-            if (state.sessionId && state.sessionId !== String(requested)) {
-                // The plugin's session ID is independent of the local request token.
-                // Loading/results are still authoritative for the currently open picker.
-            }
+            // Official AIOStreams builds do not include request IDs. Accept
+            // those states for compatibility, but enforce matching IDs when
+            // a custom build provides one.
+            if (state.requestId && state.requestId !== requested) return
             if (Array.isArray(state.results)) setResults(state.results)
             if (typeof state.loading === "boolean") setLoading(state.loading)
             if (typeof state.error === "string" || state.error === null) setError(state.error ?? null)
@@ -82,6 +83,15 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
 
     const request = React.useCallback((episode: Anime_Episode): boolean => {
         if (!pluginAvailable || !entry.media) return false
+        const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        requestToken.current = requestId
+        pendingEpisode.current = episode
+        setTitle(`${entry.media.title?.userPreferred ?? "AIOStreams"} · Episode ${episode.episodeNumber}`)
+        setResults([])
+        setError(null)
+        setLoading(true)
+        setOpen(true)
+
         const sent = sendWsMessage({
             type: "plugin",
             payload: {
@@ -92,24 +102,24 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
                     episodeNumber: episode.episodeNumber,
                     aniDbEpisode: episode.aniDBEpisode,
                     episode,
+                    requestId,
                 },
             },
         })
-        if (!sent) return false
-        requestToken.current = Date.now()
-        pendingEpisode.current = episode
-        setTitle(`${entry.media.title?.userPreferred ?? "AIOStreams"} · Episode ${episode.episodeNumber}`)
-        setResults([])
-        setError(null)
-        setLoading(true)
-        setOpen(true)
+        if (!sent) {
+            setOpen(false)
+            setLoading(false)
+            requestToken.current = null
+            pendingEpisode.current = null
+            return false
+        }
         return true
     }, [entry.media, pluginAvailable])
 
     const close = React.useCallback(() => {
         setOpen(false)
         setLoading(false)
-        requestToken.current = 0
+        requestToken.current = null
         pendingEpisode.current = null
     }, [])
 
