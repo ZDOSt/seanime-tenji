@@ -77,7 +77,10 @@ export function TVDrawer({
 
             <TVFocusGuideView
                 key={focusKey}
-                autoFocus={inline}
+                // A modal drawer must take focus away from the page behind it.
+                // Inline drawers already live in the active TV focus tree, but
+                // modal drawers otherwise leave the remote focused on the page.
+                autoFocus={open}
                 trapFocusLeft={true}
                 trapFocusRight={true}
                 trapFocusUp={true}

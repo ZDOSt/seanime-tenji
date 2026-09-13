@@ -629,12 +629,13 @@ export function TVTorrentStreamPickerDrawer({
                             style={{ flex: 1 }}
                             showsVerticalScrollIndicator={false}
                         >
-                            {extraProviders.map((provider) => (
+                            {extraProviders.map((provider, index) => (
                                 <TVFileCard
                                     key={provider.id}
                                     id={provider.id}
                                     name={provider.name}
                                     detail={provider.lang?.toUpperCase() ?? ""}
+                                    preferred={index === 0}
                                     isSelected={extraProviderIds.includes(provider.id)}
                                     onSelect={toggleExtra}
                                 />
@@ -701,7 +702,7 @@ export function TVTorrentStreamPickerDrawer({
                             style={{ flex: 1 }}
                             showsVerticalScrollIndicator={false}
                         >
-                            {previews.map((file) => {
+                            {previews.map((file, index) => {
                                 const fileId = getFileSelectionValue(file);
 
                                 return (
@@ -711,6 +712,7 @@ export function TVTorrentStreamPickerDrawer({
                                         name={file.displayTitle || file.displayPath}
                                         detail={file.displayPath}
                                         isLikely={file.isLikely}
+                                        preferred={index === 0}
                                         isSelected={selectedFileId === fileId}
                                         onSelect={(id) => {
                                             if (selectedFileId === id) {
@@ -769,6 +771,7 @@ export function TVTorrentStreamPickerDrawer({
                                         : undefined}
                                     isCached={isTorrentCached(torrent.infoHash, cacheSet)}
                                     isSelected={isSameTorrent(selectedTorrent, torrent)}
+                                    preferred={index === 0}
                                     onSelect={selectTorrent}
                                 />
                             ))}
@@ -794,6 +797,7 @@ type TVTorrentCardProps = {
     metadata?: Habari_Metadata;
     isCached?: boolean;
     isSelected: boolean;
+    preferred?: boolean;
     onSelect: (torrent: HibikeTorrent_AnimeTorrent) => void;
 };
 
@@ -803,6 +807,7 @@ const TVTorrentCard = React.memo(function TVTorrentCard({
     metadata,
     isCached,
     isSelected,
+    preferred,
     onSelect,
 }: TVTorrentCardProps) {
     const focus = useTVFocus(1.02);
@@ -833,6 +838,8 @@ const TVTorrentCard = React.memo(function TVTorrentCard({
 
     return (
         <Pressable
+            focusable
+            hasTVPreferredFocus={preferred}
             onPress={handlePress}
             onFocus={focus.focus}
             onBlur={focus.blur}
@@ -1076,6 +1083,7 @@ type TVFileCardProps = {
     detail: string;
     isLikely?: boolean;
     isSelected: boolean;
+    preferred?: boolean;
     onSelect: (id: string) => void;
 };
 
@@ -1085,6 +1093,7 @@ const TVFileCard = React.memo(function TVFileCard({
     detail,
     isLikely,
     isSelected,
+    preferred,
     onSelect,
 }: TVFileCardProps) {
     const focus = useTVFocus(1.02);
@@ -1094,6 +1103,8 @@ const TVFileCard = React.memo(function TVFileCard({
 
     return (
         <Pressable
+            focusable
+            hasTVPreferredFocus={preferred}
             onPress={handlePress}
             onFocus={focus.focus}
             onBlur={focus.blur}

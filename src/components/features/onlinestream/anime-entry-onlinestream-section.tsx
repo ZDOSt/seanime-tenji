@@ -191,6 +191,7 @@ function TVAnimeEntryOnlinestreamSection({
                 title={spoiler.hideTitle ? `Episode ${onlineEp.number}` : onlineEp.title || `Episode ${onlineEp.number}`}
                 subtitle={spoiler.hideTitle ? undefined : `Episode ${onlineEp.number}`}
                 completed={isWatched}
+                preferred={idx === 0}
                 blurred={spoiler.hideThumbnail}
                 onPress={() => handleEpisodePress(onlineEp)}
                 recyclingKey={`tv-online-ep-${onlineEp.number}-${idx}`}

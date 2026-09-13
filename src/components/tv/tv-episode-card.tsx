@@ -49,6 +49,7 @@ export const TVEpisodeCard = React.memo(
             return (
                 <Pressable
                     ref={ref}
+                    focusable
                     onPress={onPress}
                     onFocus={focus.focus}
                     onBlur={focus.blur}

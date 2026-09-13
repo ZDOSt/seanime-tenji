@@ -587,6 +587,9 @@ function TVHomeContent({
             fadingEdgeLength={{ start: TV.navInset + tvSize(18), end: 0 }}
             contentContainerStyle={{
                 paddingBottom: tvSize(90),
+                // The search field floats above the feed. Keep the first row
+                // below it while Trending is still loading or unavailable.
+                paddingTop: trendingHeroItems.length > 0 ? 0 : TV.navInset,
                 gap: TV.sectionGap,
             }}
             showsVerticalScrollIndicator={false}
