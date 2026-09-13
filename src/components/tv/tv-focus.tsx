@@ -1,4 +1,4 @@
-import { tvSize } from "@/components/tv/tv-scale"
+import { TV, tvSize } from "@/components/tv/tv-scale"
 import { cn } from "@/lib/utils"
 import { useSegments } from "expo-router"
 import * as React from "react"
@@ -181,9 +181,7 @@ export const TVButton = React.forwardRef<React.ElementRef<typeof Pressable>, TVB
                     className={cn(
                         "flex-row items-center",
                         VARIANT_CLASSES[variant],
-                        focusState.focused && (primary
-                            ? "border-white bg-brand-700"
-                            : "border-white bg-white/15"),
+                        focusState.focused && "border-brand-400",
                     )}
                 >
                     {icon}
@@ -245,11 +243,7 @@ export const TVPillButton = React.forwardRef<React.ElementRef<typeof Pressable>,
         const focusState = useTVFocus(1.05, label)
         const isPreferred = usePreferredFocus(preferred)
         const navDestination = useTVNavigationDestination()
-        const renderedIcon = typeof icon === "function"
-            ? icon(focusState.focused)
-            : (focusState.focused && React.isValidElement(icon)
-                ? React.cloneElement(icon as React.ReactElement<{ color?: string }>, { color: "#000000" })
-                : icon)
+        const renderedIcon = typeof icon === "function" ? icon(focusState.focused) : icon
 
         return (
             <Pressable
@@ -284,11 +278,9 @@ export const TVPillButton = React.forwardRef<React.ElementRef<typeof Pressable>,
                             alignItems: "center",
                             justifyContent: "center",
                             gap: label ? tvSize(8) : 0,
-                            backgroundColor: focusState.focused
-                                ? "#ffffff"
-                                : (active ? "rgba(168,159,255,0.2)" : "rgba(255,255,255,0.06)"),
+                            backgroundColor: active ? "rgba(168,159,255,0.2)" : "rgba(255,255,255,0.06)",
                             borderColor: focusState.focused
-                                ? "#ffffff"
+                                ? TV.focusColor
                                 : (active ? "#9b90ff" : "rgba(255,255,255,0.1)"),
                             flexShrink: 0,
                         },
@@ -300,9 +292,7 @@ export const TVPillButton = React.forwardRef<React.ElementRef<typeof Pressable>,
                             className="font-semibold"
                             style={{
                                 fontSize: tvSize(18),
-                                color: focusState.focused
-                                    ? "#000000"
-                                    : (active ? "#b8b0ff" : "#ffffff"),
+                                color: active ? "#b8b0ff" : "#ffffff",
                             }}
                         >
                             {label}

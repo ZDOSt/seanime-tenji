@@ -1,5 +1,5 @@
 import { TVButton } from "@/components/tv/tv-focus"
-import { tvSize } from "@/components/tv/tv-scale"
+import { TV, tvSize } from "@/components/tv/tv-scale"
 import { IMAGES } from "@/constants/images"
 import Ionicons from "@expo/vector-icons/Ionicons"
 import { Image } from "expo-image"
@@ -113,7 +113,7 @@ function TVInput({
                         transform: [{ scale }],
                         borderRadius: tvSize(12),
                         borderWidth: tvSize(2),
-                        borderColor: focused ? "#b8b0ff" : "rgba(255,255,255,0.1)",
+                        borderColor: focused ? TV.focusColor : "rgba(255,255,255,0.1)",
                         backgroundColor: focused ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.04)",
                     }}
                 >

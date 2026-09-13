@@ -86,7 +86,7 @@ export const TVMediaCard = React.memo(function TVMediaCard({
                         borderRadius: TV.radius,
                         borderWidth: TV.focusBorder,
                         backgroundColor: "rgba(255,255,255,0.04)",
-                        borderColor: focusState.focused ? "#fff" : "transparent",
+                        borderColor: focusState.focused ? TV.focusColor : "transparent",
                     }}
                 >
                     <Image

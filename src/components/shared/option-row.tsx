@@ -3,7 +3,7 @@ import { Ionicons } from "@expo/vector-icons"
 import * as React from "react"
 import { Animated, Platform, Pressable, Text, TouchableOpacity, View } from "react-native"
 import { useTVFocus } from "@/components/tv/tv-focus"
-import { tvSize } from "@/components/tv/tv-scale"
+import { TV, tvSize } from "@/components/tv/tv-scale"
 
 type OptionRowProps = {
     label: string
@@ -47,7 +47,8 @@ export function OptionRow({
     monoDetail = true,
     preferred = false,
 }: OptionRowProps) {
-    const focusState = useTVFocus(1.01, label)
+    // These rows sit in clipped groups; scaling would cut off the focus border.
+    const focusState = useTVFocus(1, label)
 
     if (Platform.isTV) {
         return (
@@ -73,7 +74,7 @@ export function OptionRow({
                             paddingHorizontal: tvSize(22),
                             gap: tvSize(18),
                             borderWidth: tvSize(2),
-                            borderColor: focusState.focused ? "#ffffff" : "transparent",
+                            borderColor: focusState.focused ? TV.focusColor : "transparent",
                             backgroundColor: focusState.focused
                                 ? "rgba(255,255,255,0.12)"
                                 : "transparent",

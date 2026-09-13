@@ -19,4 +19,6 @@ export const TV = {
     cardGap: tvSize(22),
     radius: tvSize(18),
     focusBorder: Math.max(2, tvSize(4)),
+    // Matches --color-brand-400, the existing pressed-link border.
+    focusColor: "rgb(159, 146, 255)",
 }

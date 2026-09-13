@@ -1,5 +1,5 @@
 import { usePreferredFocus, useTVFocus, useTVNavigationDestination } from "@/components/tv/tv-focus"
-import { tvSize } from "@/components/tv/tv-scale"
+import { TV, tvSize } from "@/components/tv/tv-scale"
 import * as React from "react"
 import {
     Animated,
@@ -103,7 +103,7 @@ export const TVInput = React.forwardRef<TVInputHandle, TVInputProps>(
                                     flex: 1,
                                     height: tvSize(56),
                                     backgroundColor: active ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.05)",
-                                    borderColor: active ? "#ffffff" : "rgba(255,255,255,0.1)",
+                                    borderColor: active ? TV.focusColor : "rgba(255,255,255,0.1)",
                                     borderWidth: tvSize(2),
                                     borderRadius: tvSize(99),
                                     paddingHorizontal: tvSize(16),
@@ -115,7 +115,7 @@ export const TVInput = React.forwardRef<TVInputHandle, TVInputProps>(
                                 },
                                 floating && {
                                     backgroundColor: "rgba(10,10,12,0.9)",
-                                    borderColor: active ? "#fff" : "transparent",
+                                    borderColor: active ? TV.focusColor : "transparent",
                                     // shadowColor: "#000000",
                                     // shadowOpacity: 0.35,
                                     // shadowRadius: tvSize(14),

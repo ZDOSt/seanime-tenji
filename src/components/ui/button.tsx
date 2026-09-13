@@ -78,7 +78,7 @@ const Button = React.forwardRef<React.ElementRef<typeof Pressable>, ButtonProps>
                         buttonVariants({ variant, size, className }),
                         props.disabled && "opacity-50 web:pointer-events-none",
                         Platform.isTV && "border-2 border-transparent",
-                        Platform.isTV && focused && "border-brand-100 bg-white/15",
+                        Platform.isTV && focused && "border-brand-400",
                     )}
                     ref={ref}
                     role="button"

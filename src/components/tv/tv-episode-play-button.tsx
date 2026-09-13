@@ -17,11 +17,11 @@ export const TVEpisodePlayButton = React.forwardRef<React.ElementRef<typeof Pres
                 ref={ref}
                 label={`Play episode ${episode}`}
                 disabled={disabled}
-                icon={focused => (
+                icon={(
                     <Ionicons
                         name="play"
                         size={tvSize(18)}
-                        color={focused ? "#0a0a0a" : "#ffffff"}
+                        color="#ffffff"
                     />
                 )}
                 onPress={onPress}

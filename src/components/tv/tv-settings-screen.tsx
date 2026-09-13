@@ -75,7 +75,7 @@ const SettingsRow = React.memo(React.forwardRef<RowRef, SettingsRowProps>(functi
     trailing,
     showChevron = true,
 }, ref) {
-    const focusState = useTVFocus(1.02, label)
+    const focusState = useTVFocus(1, label)
     const isPreferred = usePreferredFocus(preferred)
 
     return (
@@ -97,6 +97,9 @@ const SettingsRow = React.memo(React.forwardRef<RowRef, SettingsRowProps>(functi
                         gap: tvSize(18),
                         paddingVertical: tvSize(18),
                         paddingHorizontal: tvSize(22),
+                        borderWidth: TV.focusBorder,
+                        borderColor: focusState.focused ? TV.focusColor : "transparent",
+                        borderRadius: tvSize(12),
                         backgroundColor: focusState.focused
                             ? "rgba(255,255,255,0.1)"
                             : "transparent",

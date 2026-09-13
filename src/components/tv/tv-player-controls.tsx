@@ -1,7 +1,7 @@
 import { BUFFER_FILL } from "@/components/features/player/constants"
 import { formatTime, isSkippableChapter } from "@/components/features/player/helpers"
 import { useTVFocus } from "@/components/tv/tv-focus"
-import { tvSize } from "@/components/tv/tv-scale"
+import { TV, tvSize } from "@/components/tv/tv-scale"
 import type { PlayerChapter, PlayerState } from "@/lib/player"
 import type { MobilePlaybackSource } from "@/lib/player/types"
 import {
@@ -25,7 +25,7 @@ import {
     View,
 } from "react-native"
 
-const FOCUS_BORDER = "#ffffff"
+const FOCUS_BORDER = TV.focusColor
 
 type ControlProps = {
     label: string

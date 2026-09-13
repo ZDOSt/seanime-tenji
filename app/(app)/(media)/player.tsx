@@ -36,7 +36,7 @@ import { PlayerPanelOverlay } from "@/components/features/player/player-panel"
 import { getBufferedRatio } from "@/components/features/player/progress"
 import type { PlayerPanel } from "@/components/features/player/types"
 import { createGestureRefs, syncGestureRef } from "@/components/features/player/types"
-import { TVPlayerControls, TVPlayerDialog, TVPlayerPanel } from "@/components/tv"
+import { TV, TVPlayerControls, TVPlayerDialog, TVPlayerPanel } from "@/components/tv"
 import { isLocalServer } from "@/lib/downloads"
 import { useIsServerConnected } from "@/lib/offline"
 import {
@@ -1143,6 +1143,7 @@ function PlayerScreenInner() {
                     onPress={handleBack}
                     hasTVPreferredFocus={Platform.isTV}
                     className="rounded-xl border-2 border-transparent bg-white/10 px-6 py-3 focus:border-brand-100"
+                    style={({ focused }) => Platform.isTV && focused ? { borderColor: TV.focusColor } : undefined}
                 >
                     <Text className="text-white font-medium">Go Back</Text>
                 </RNPressable>

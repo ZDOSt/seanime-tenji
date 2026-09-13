@@ -1,7 +1,7 @@
 import { SeaBottomSheet } from "@/components/ui/bottom-sheet"
 import { Ionicons } from "@expo/vector-icons"
 import React from "react"
-import { ActivityIndicator, Pressable, Text, View } from "react-native"
+import { ActivityIndicator, Platform, Pressable, Text, View } from "react-native"
 import type { AioStreamsResult } from "./use-aiostreams-plugin-controller"
 
 type Props = {
@@ -15,6 +15,12 @@ type Props = {
 }
 
 export function AioStreamsResultPicker({ open, loading, title, results, error, onClose, onSelect }: Props) {
+    const [focusedIndex, setFocusedIndex] = React.useState<number | null>(null)
+
+    React.useEffect(() => {
+        if (!open || loading) setFocusedIndex(null)
+    }, [open, loading])
+
     return (
         <SeaBottomSheet open={open} onOpenChange={value => !value && onClose()} title={title} snapPoints={["78%", "94%"]}>
             <View className="gap-3">
@@ -27,6 +33,7 @@ export function AioStreamsResultPicker({ open, loading, title, results, error, o
                 {!loading && error && <Text className="text-red-300 py-6">{error}</Text>}
                 {!loading && !error && results.length === 0 && <Text className="text-white/60 py-6">No AIOStreams results found.</Text>}
                 {!loading && results.map((result, index) => {
+                    const focused = Platform.isTV && focusedIndex === index
                     const name = result.name || result.filename || result.folderName || `Result ${index + 1}`
                     const details = [result.resolution, result.service, result.cached ? "Cached" : null, result.seeders ? `${result.seeders} seeders` : null]
                         .filter(Boolean)
@@ -36,7 +43,14 @@ export function AioStreamsResultPicker({ open, loading, title, results, error, o
                             key={`${result.infoHash ?? result.url ?? index}-${index}`}
                             onPress={() => onSelect(result, index)}
                             focusable
-                            className="rounded-xl border border-white/10 bg-white/[0.06] px-4 py-4 active:border-brand-400"
+                            accessibilityRole="button"
+                            onFocus={Platform.isTV ? () => setFocusedIndex(index) : undefined}
+                            onBlur={Platform.isTV ? () => setFocusedIndex(current => current === index ? null : current) : undefined}
+                            className={`rounded-xl border bg-white/[0.06] px-4 py-4 active:border-brand-400 ${focused ? "border-brand-400" : "border-white/10"}`}
+                            style={Platform.isTV ? {
+                                // Keep the border width constant so moving focus doesn't shift the list.
+                                borderWidth: 3,
+                            } : undefined}
                         >
                             <View className="flex-row items-start gap-3">
                                 <Ionicons name={result.type === "p2p" ? "magnet-outline" : "play-circle-outline"} size={22} color="#a4f4cf" />

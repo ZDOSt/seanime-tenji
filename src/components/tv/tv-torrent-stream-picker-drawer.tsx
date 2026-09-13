@@ -19,7 +19,7 @@ import type { StreamMode } from "@/components/features/torrentstream/use-torrent
 import { CenteredSpinner } from "@/components/shared/centered-spinner"
 import { TVButton, TVDrawer, TVInput, TVPillButton, useTVFocus } from "@/components/tv"
 import type { TVInputHandle } from "@/components/tv/tv-input"
-import { tvSize } from "@/components/tv/tv-scale"
+import { TV, tvSize } from "@/components/tv/tv-scale"
 import { Ionicons } from "@expo/vector-icons"
 import * as React from "react"
 import { Animated, FlatList, Pressable, ScrollView, Text, TVFocusGuideView, View } from "react-native"
@@ -859,7 +859,7 @@ const TVTorrentCard = React.memo(function TVTorrentCard({
                               : "rgba(255,255,255,0.04)",
                         borderWidth: tvSize(2),
                         borderColor: focus.focused
-                            ? "#ffffff"
+                            ? TV.focusColor
                             : isSelected
                               ? "#9b90ff"
                               : "rgba(255,255,255,0.08)",
@@ -1117,14 +1117,10 @@ const TVFileCard = React.memo(function TVFileCard({
                     {
                         padding: tvSize(14),
                         borderRadius: tvSize(12),
-                        backgroundColor: focus.focused
-                            ? "#ffffff"
-                            : isSelected
-                              ? "rgba(168,159,255,0.12)"
-                              : "rgba(255,255,255,0.04)",
+                        backgroundColor: isSelected ? "rgba(168,159,255,0.12)" : "rgba(255,255,255,0.04)",
                         borderWidth: tvSize(2),
                         borderColor: focus.focused
-                            ? "#ffffff"
+                            ? TV.focusColor
                             : isSelected
                               ? "#9b90ff"
                               : "rgba(255,255,255,0.08)",
@@ -1140,11 +1136,7 @@ const TVFileCard = React.memo(function TVFileCard({
                         style={{
                             fontSize: tvSize(16),
                             fontWeight: "600",
-                            color: focus.focused
-                                ? "#000000"
-                                : isSelected
-                                  ? "#b8b0ff"
-                                  : "#ffffff",
+                            color: isSelected ? "#b8b0ff" : "#ffffff",
                         }}
                         numberOfLines={1}
                     >
@@ -1154,9 +1146,7 @@ const TVFileCard = React.memo(function TVFileCard({
                         <Text
                             style={{
                                 fontSize: tvSize(13),
-                                color: focus.focused
-                                    ? "#555555"
-                                    : "rgba(255,255,255,0.4)",
+                                color: "rgba(255,255,255,0.4)",
                             }}
                             numberOfLines={1}
                         >
@@ -1177,12 +1167,8 @@ const TVFileCard = React.memo(function TVFileCard({
                                 paddingHorizontal: tvSize(8),
                                 paddingVertical: tvSize(3),
                                 borderRadius: tvSize(6),
-                                backgroundColor: focus.focused
-                                    ? "rgba(5,150,105,0.16)"
-                                    : "rgba(16,185,129,0.14)",
-                                borderColor: focus.focused
-                                    ? "#047857"
-                                    : "rgba(16,185,129,0.24)",
+                                backgroundColor: "rgba(16,185,129,0.14)",
+                                borderColor: "rgba(16,185,129,0.24)",
                                 borderWidth: tvSize(1),
                             }}
                         >
@@ -1190,7 +1176,7 @@ const TVFileCard = React.memo(function TVFileCard({
                                 style={{
                                     fontSize: tvSize(12),
                                     fontWeight: "bold",
-                                    color: focus.focused ? "#047857" : "#a7f3d0",
+                                    color: "#a7f3d0",
                                 }}
                             >
                                 LIKELY
@@ -1201,7 +1187,7 @@ const TVFileCard = React.memo(function TVFileCard({
                         <Ionicons
                             name="checkmark-circle"
                             size={tvSize(20)}
-                            color={focus.focused ? "#5b4fd8" : "#b8b0ff"}
+                            color="#b8b0ff"
                         />
                     )}
                 </View>

@@ -18,7 +18,7 @@ const Input = React.forwardRef<
                 props.editable === false && "opacity-50",
                 Platform.isTV && "h-14 rounded-xl border-2 text-lg",
                 className,
-                Platform.isTV && focused && "border-brand-100 bg-white/[0.08]",
+                Platform.isTV && focused && "border-brand-400 bg-white/[0.08]",
             )}
             placeholderTextColor={placeholderTextColor ?? (typeof resolvedPlaceholderColor === "string" ? resolvedPlaceholderColor : undefined)}
             textAlignVertical="center"

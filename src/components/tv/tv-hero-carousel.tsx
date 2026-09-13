@@ -189,11 +189,11 @@ export const TVHeroCarousel = React.memo(function TVHeroCarousel({
                                 accessibilityLabel="Previous featured title"
                                 onPress={() => move(index - 1)}
                                 navOnUp={navOnUp}
-                                icon={(focused) => (
+                                icon={(
                                     <Ionicons
                                         name="chevron-back"
                                         size={tvSize(22)}
-                                        color={focused ? "#000000" : "#ffffff"}
+                                        color="#ffffff"
                                     />
                                 )}
                             />
@@ -202,11 +202,11 @@ export const TVHeroCarousel = React.memo(function TVHeroCarousel({
                                 accessibilityLabel="Next featured title"
                                 onPress={() => move(index + 1)}
                                 navOnUp={navOnUp}
-                                icon={(focused) => (
+                                icon={(
                                     <Ionicons
                                         name="chevron-forward"
                                         size={tvSize(22)}
-                                        color={focused ? "#000000" : "#ffffff"}
+                                        color="#ffffff"
                                     />
                                 )}
                             />

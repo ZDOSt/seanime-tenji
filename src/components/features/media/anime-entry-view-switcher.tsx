@@ -115,8 +115,8 @@ function AnimeEntryViewButton({ label, icon, active, onPress }: AnimeEntryViewBu
             onBlur={() => setFocused(false)}
             className={cn(
                 "flex-1 items-center justify-center gap-1",
-                Platform.isTV && "min-h-14 flex-row rounded-xl px-3",
-                Platform.isTV && focused && "bg-white/15",
+                Platform.isTV && "min-h-14 flex-row rounded-xl border-2 border-transparent px-3",
+                Platform.isTV && focused && "border-brand-400 bg-white/15",
             )}
         >
             {Platform.isTV ? (

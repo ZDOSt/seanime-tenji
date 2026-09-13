@@ -63,13 +63,13 @@ export const TVEpisodeCard = React.memo(
                 >
                     <Animated.View style={focus.style}>
                         <View
+                            className={focus.focused ? "border-brand-400" : "border-transparent"}
                             style={{
                                 width,
                                 height: imageHeight,
                                 overflow: "hidden",
                                 borderRadius: TV.radius,
                                 borderWidth: TV.focusBorder,
-                                borderColor: focus.focused ? "#fff" : "transparent",
                                 backgroundColor: "rgba(255,255,255,0.0)",
                             }}
                         >

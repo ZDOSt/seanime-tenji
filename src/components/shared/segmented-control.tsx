@@ -85,7 +85,7 @@ function SegmentOption({ label, active, onPress }: { label: string; active: bool
             onBlur={() => setFocused(false)}
             className={cn(
                 "z-10 h-full flex-1 items-center justify-center rounded-full border-2 border-transparent",
-                Platform.isTV && focused && "border-brand-100 bg-white/10",
+                Platform.isTV && focused && "border-brand-400 bg-white/10",
             )}
         >
             <Text

@@ -12,7 +12,7 @@ import { formatSecondsLabel, getBackPanel } from "@/components/features/player/h
 import type { PlayerPanel } from "@/components/features/player/types"
 import { TVDrawer } from "@/components/tv/tv-drawer"
 import { TVButton, useTVFocus } from "@/components/tv/tv-focus"
-import { tvSize } from "@/components/tv/tv-scale"
+import { TV, tvSize } from "@/components/tv/tv-scale"
 import type { PlayerPreferences } from "@/lib/player/player-preferences"
 import type { PlayerState, PlayerTrack } from "@/lib/player/types"
 import type { MpvVideoOutput } from "expo-mpv-player"
@@ -349,7 +349,7 @@ function TVPanelRow({
                         minHeight: tvSize(72),
                         borderRadius: tvSize(13),
                         borderWidth: tvSize(2),
-                        borderColor: focus.focused ? "#ffffff" : "transparent",
+                        borderColor: focus.focused ? TV.focusColor : "transparent",
                         backgroundColor: active
                             ? BRAND_ACCENT_TINT
                             : focus.focused

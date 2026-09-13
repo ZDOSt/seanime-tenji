@@ -67,27 +67,25 @@ const NavItem = React.forwardRef<React.ElementRef<typeof Pressable>, {
                             paddingVertical: tvSize(5),
                             borderRadius: tvSize(99),
                             borderWidth: tvSize(2),
-                            borderColor: focused ? "#ffffff" : "transparent",
+                            borderColor: focused ? TV.focusColor : "transparent",
                             flexDirection: "row",
                             alignItems: "center",
                             gap: tvSize(10),
-                            backgroundColor: focused
-                                ? "#ffffff"
-                                : (selected ? "rgba(255,255,255,0.12)" : "transparent"),
+                            backgroundColor: selected ? "rgba(255,255,255,0.12)" : "transparent",
                         },
                     ]}
                 >
                     {pending ? (
                         <ActivityIndicator
                             size={tvSize(26)}
-                            color={focused ? "#0a0a0a" : "#ffffff"}
+                            color="#ffffff"
                         />
                     ) : (
                         <Ionicons
                             name={focused || active ? item.activeIcon : item.icon}
                             size={tvSize(26)}
                             color={focused
-                                ? "#0a0a0a"
+                                ? "#ffffff"
                                 : (active ? "#ffffff" : "rgba(255,255,255,0.46)")}
                         />
                     )}
@@ -95,7 +93,7 @@ const NavItem = React.forwardRef<React.ElementRef<typeof Pressable>, {
                         className="font-semibold"
                         style={{
                             color: focused
-                                ? "#0a0a0a"
+                                ? "#ffffff"
                                 : (selected ? "#ffffff" : "rgba(255,255,255,0.5)"),
                             fontSize: tvSize(20),
                         }}

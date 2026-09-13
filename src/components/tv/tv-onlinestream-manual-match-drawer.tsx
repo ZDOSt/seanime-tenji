@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons"
 import { TVDrawer } from "./tv-drawer"
 import { TVInput, type TVInputHandle } from "./tv-input"
 import { TVButton, useTVFocus } from "./tv-focus"
-import { tvSize } from "./tv-scale"
+import { TV, tvSize } from "./tv-scale"
 import {
     useGetOnlinestreamMapping,
     useOnlinestreamManualMapping,
@@ -38,7 +38,7 @@ const TVManualMatchResultCard = React.memo(function TVManualMatchResultCard({
                         borderRadius: tvSize(12),
                         backgroundColor: focus.focused ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)",
                         borderWidth: tvSize(2),
-                        borderColor: focus.focused ? "#ffffff" : "rgba(255,255,255,0.08)",
+                        borderColor: focus.focused ? TV.focusColor : "rgba(255,255,255,0.08)",
                         gap: tvSize(4),
                     },
                 ]}
