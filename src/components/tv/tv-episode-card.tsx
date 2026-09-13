@@ -40,7 +40,7 @@ export const TVEpisodeCard = React.memo(
             navOnUp = false,
             ...props
         }, ref) {
-            const focus = useTVFocus(1.05, title)
+            const focus = useTVFocus(1.07, title)
             const isPreferred = usePreferredFocus(preferred)
             const navDestination = useTVNavigationDestination()
             const width = tvSize(410)
@@ -69,7 +69,7 @@ export const TVEpisodeCard = React.memo(
                                 height: imageHeight,
                                 overflow: "hidden",
                                 borderRadius: TV.radius,
-                                borderWidth: TV.focusBorder,
+                                borderWidth: TV.cardFocusBorder,
                                 backgroundColor: "rgba(255,255,255,0.0)",
                             }}
                         >

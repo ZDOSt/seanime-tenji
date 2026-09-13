@@ -54,6 +54,15 @@ object ExpoExternalPlayerLauncher {
     }
 
     private fun buildCandidateIntents(uri: Uri, packageName: String?): List<Intent> {
+        // mpv-android documents video/any for URLs without a recognizable file
+        // extension, which is how Seanime's streaming endpoints are exposed.
+        if (packageName == "is.xyz.mpv") {
+            return listOf(
+                baseIntent(packageName, uri).setDataAndType(uri, "video/any"),
+                baseIntent(packageName, uri).setData(uri),
+            )
+        }
+
         return listOf(
             baseIntent(packageName, uri).setDataAndType(uri, "video/*"),
             baseIntent(packageName, uri).setData(uri),

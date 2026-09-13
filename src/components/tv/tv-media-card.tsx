@@ -44,7 +44,7 @@ export const TVMediaCard = React.memo(function TVMediaCard({
     hideLibraryBadge,
     navOnUp = false,
 }: TVMediaCardProps) {
-    const focusState = useTVFocus(1.055, mediaTitle(media))
+    const focusState = useTVFocus(1.075, mediaTitle(media))
     const navDestination = useTVNavigationDestination()
     const serverStatus = useServerStatus()
     const syncedList = useMediaEntryListDataValue("anime", media.id) as Anime_EntryListData | undefined
@@ -84,7 +84,7 @@ export const TVMediaCard = React.memo(function TVMediaCard({
                         height: width * 1.42,
                         overflow: "hidden",
                         borderRadius: TV.radius,
-                        borderWidth: TV.focusBorder,
+                        borderWidth: TV.cardFocusBorder,
                         backgroundColor: "rgba(255,255,255,0.04)",
                         borderColor: focusState.focused ? TV.focusColor : "transparent",
                     }}
