@@ -35,6 +35,7 @@ import { useGetAnilistAnimeDetails } from "@/api/hooks/anilist.hooks"
 import { CenteredSpinner } from "@/components/shared/centered-spinner"
 import type { AnimeEntryView } from "@/components/features/media/anime-entry-view-switcher"
 import { tvEntryView } from "@/components/features/media/anime-entry-view-utils"
+import { getDefaultPlaybackSource, isAioStreamsPlaybackSource } from "@/lib/default-playback-source"
 import { getEpisodeSpoilerState } from "@/lib/anime-spoilers"
 import { altTitle, cleanHtml, listStatus, mediaTitle, startLabel } from "@/lib/media-metadata"
 import { router, useFocusEffect } from "expo-router"
@@ -226,7 +227,8 @@ export function TVAnimeEntryScreen({
     const statusLabel = listStatus(entry.listData?.status)
     const hideAudienceScore = serverStatus?.settings?.anilist?.hideAudienceScore ?? false
 
-    const hasTorrentStream = (serverStatus?.torrentstreamSettings?.enabled || serverStatus?.debridSettings?.enabled) && isConnected
+    const hasPluginPlayback = isAioStreamsPlaybackSource(getDefaultPlaybackSource(serverStatus))
+    const hasTorrentStream = (serverStatus?.torrentstreamSettings?.enabled || serverStatus?.debridSettings?.enabled || hasPluginPlayback) && isConnected
     const hasOnlineStream = serverStatus?.settings?.library?.enableOnlinestream && isConnected
     const hasServerLocal = !!serverLocalIdentity && !!serverLocalEntry && !isConnected
 

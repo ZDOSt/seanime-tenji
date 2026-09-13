@@ -43,6 +43,29 @@ function isObject(value: unknown): value is Record<string, unknown> {
     return !!value && typeof value === "object" && !Array.isArray(value)
 }
 
+type PluginServerEvent = {
+    extensionId?: unknown
+    type?: unknown
+    payload?: unknown
+}
+
+function visitPluginServerEvents(message: WebsocketMessage, visit: (event: PluginServerEvent) => void) {
+    if (message.type !== "plugin" || !isObject(message.payload)) return
+
+    const pluginEvent = message.payload as PluginServerEvent
+    if (pluginEvent.type === "plugin:batch-events" && isObject(pluginEvent.payload)) {
+        const events = pluginEvent.payload.events
+        if (Array.isArray(events)) {
+            for (const event of events) {
+                if (isObject(event)) visit(event as PluginServerEvent)
+            }
+        }
+        return
+    }
+
+    visit(pluginEvent)
+}
+
 export function useAioStreamsPluginController(entry: Anime_Entry) {
     const { data: tabs } = useServerQuery<ExtensionRepo_PluginEpisodeTabExtensionItem[]>({
         endpoint: API_ENDPOINTS.EXTENSIONS.ListAnimeEntryEpisodeTabExtensions.endpoint,
@@ -63,23 +86,24 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
 
     React.useEffect(() => {
         const handleMessage = (message: WebsocketMessage) => {
-            if (message.type !== "plugin" || !isObject(message.payload)) return
-            if (message.payload.extensionId !== EXTENSION_ID || message.payload.type !== "webview:sync-state") return
-            const payload = message.payload.payload
-            if (!isObject(payload) || payload.key !== "state" || !isObject(payload.value)) return
-            const state = payload.value as PluginState
-            const requested = requestToken.current
-            if (!requested || !open) return
-            // Official AIOStreams builds do not include request IDs. Accept
-            // those states for compatibility, but enforce matching IDs when
-            // a custom build provides one.
-            if (state.requestId && state.requestId !== requested) return
-            if (Array.isArray(state.results)) setResults(state.results)
-            if (typeof state.loading === "boolean") setLoading(state.loading)
-            if (typeof state.error === "string" || state.error === null) setError(state.error ?? null)
+            visitPluginServerEvents(message, event => {
+                if (event.extensionId !== EXTENSION_ID || event.type !== "webview:sync-state") return
+                const payload = event.payload
+                if (!isObject(payload) || payload.key !== "state" || !isObject(payload.value)) return
+                const state = payload.value as PluginState
+                const requested = requestToken.current
+                if (!requested) return
+                // Official AIOStreams builds do not include request IDs. Accept
+                // those states for compatibility, but enforce matching IDs when
+                // a custom build provides one.
+                if (state.requestId && state.requestId !== requested) return
+                if (Array.isArray(state.results)) setResults(state.results)
+                if (typeof state.loading === "boolean") setLoading(state.loading)
+                if (typeof state.error === "string" || state.error === null) setError(state.error ?? null)
+            })
         }
         return subscribeWsMessage(handleMessage)
-    }, [open])
+    }, [])
 
     const request = React.useCallback((episode: Anime_Episode): boolean => {
         if (!pluginAvailable || !entry.media) return false

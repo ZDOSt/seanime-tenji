@@ -76,6 +76,7 @@ const syncLocalFinishedKeys = [
 
 const extensionsReloadedKeys = [
     API_ENDPOINTS.EXTENSIONS.ListAnimeTorrentProviderExtensions.key,
+    API_ENDPOINTS.EXTENSIONS.ListAnimeEntryEpisodeTabExtensions.key,
     API_ENDPOINTS.EXTENSIONS.ListMangaProviderExtensions.key,
     API_ENDPOINTS.EXTENSIONS.ListOnlinestreamProviderExtensions.key,
     API_ENDPOINTS.EXTENSIONS.ListCustomSourceExtensions.key,

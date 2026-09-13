@@ -17,3 +17,7 @@ export function getDefaultPlaybackSource(serverStatus: Status | null | undefined
 export function isPluginPlaybackSource(source: string): boolean {
     return source.startsWith("ext:") || source.startsWith("episodeTab:")
 }
+
+export function isAioStreamsPlaybackSource(source: string): boolean {
+    return source === "ext:aiostreams-plugin" || source === "episodeTab:aiostreams-plugin"
+}
