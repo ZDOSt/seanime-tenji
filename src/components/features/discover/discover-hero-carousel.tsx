@@ -78,7 +78,10 @@ type DiscoverHeroCarouselInteractionLayerProps = {
 
 export function useDiscoverHeroItems(media: DiscoverHeroItem[]) {
     return React.useMemo(
-        () => media.filter(item => !!item.bannerImage).slice(0, MAX_ITEMS),
+        () => media
+            .filter(item => item.status !== "NOT_YET_RELEASED")
+            .filter(item => !!item.bannerImage || !!item.coverImage?.extraLarge || !!item.coverImage?.large)
+            .slice(0, MAX_ITEMS),
         [media],
     )
 }

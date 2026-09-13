@@ -61,6 +61,22 @@ export const DEFAULT_TV_HOME_ITEMS: Models_HomeItem[] = [
     },
 ]
 
+/**
+ * Convert the server layout into rows rendered below the permanent Trending
+ * hero. Header-only entries are retained for backwards-compatible storage but
+ * are not rendered as duplicate shelves.
+ */
+export function getHomeContentItems(items: ReadonlyArray<Models_HomeItem>): Models_HomeItem[] {
+    const hasContinueRow = items.some(item => item.type === "anime-continue-watching")
+    return items.flatMap(item => {
+        if (item.type === "discover-header") return []
+        if (item.type === "anime-continue-watching-header") {
+            return hasContinueRow ? [] : [{ ...item, type: "anime-continue-watching" as const }]
+        }
+        return [item]
+    })
+}
+
 function isHomeItem(value: unknown): value is Models_HomeItem {
     if (!value || typeof value !== "object") return false
 

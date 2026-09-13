@@ -15,6 +15,7 @@ import { LuffyError } from "@/components/shared/luffy-error"
 import { OfflineBanner } from "@/components/shared/offline-banner"
 import { TVLibraryScreen } from "@/components/tv/tv-library-screen"
 import { useDiscoverRecentlyAired, useDiscoverTrendingAnime } from "@/components/features/discover/discover-queries"
+import { DiscoverHeroCarouselBackdrop, DiscoverHeroCarouselInteractionLayer, useDiscoverHeroCarouselController, useDiscoverHeroItems } from "@/components/features/discover/discover-hero-carousel"
 import { ContinueWatchingItem, useAnimeLibraryCollection } from "@/hooks/use-anime-library-collection"
 import { useIOSScrollRefreshRateWorkaround } from "@/hooks/use-ios-scroll-refresh-rate-workaround"
 import { useIsServerConnected, useServerLocalAnimeRecords } from "@/lib/offline"
@@ -24,6 +25,7 @@ import {
     getHomeItemStringArrayOption,
     getHomeItemStringOption,
     normalizeTVHomeItems,
+    getHomeContentItems,
 } from "@/lib/home/home-items"
 import { useIsFocused } from "expo-router"
 import { router, useFocusEffect } from "expo-router"
@@ -80,7 +82,7 @@ function MobileLibraryScreen() {
         () => new Set(homeItems.map(item => item.type)),
         [homeItems],
     )
-    const needsTrending = homeItemTypes.has("discover-header")
+    const needsTrending = isConnected
     const needsRecent = homeItemTypes.has("aired-recently")
     const needsMissedSequels = homeItemTypes.has("missed-sequels")
     const needsMyLists = homeItemTypes.has("my-lists")
@@ -92,6 +94,10 @@ function MobileLibraryScreen() {
         () => trendingData?.Page?.media?.filter(Boolean) as AL_BaseAnime[] ?? [],
         [trendingData?.Page?.media],
     )
+    const isSearching = searchQuery.trim().length > 0
+    const trendingHeroMedia = useDiscoverHeroItems(trendingMedia)
+    const heroController = useDiscoverHeroCarouselController(trendingHeroMedia, isFocused && !isSearching)
+    const contentItems = React.useMemo(() => getHomeContentItems(homeItems), [homeItems])
 
     React.useEffect(() => {
         refetchRef.current = refetch
@@ -109,8 +115,6 @@ function MobileLibraryScreen() {
             .filter(Boolean)
     }, [allEntries, deferredSearchQuery])
 
-    const isSearching = searchQuery.trim().length > 0
-
     useFocusEffect(
         React.useCallback(() => {
             if (!isConnected) return
@@ -118,10 +122,7 @@ function MobileLibraryScreen() {
         }, [isConnected]),
     )
 
-    const hasHero = isConnected
-        && homeItems.some(item => item.type === "anime-continue-watching-header")
-        && continueWatchingList.length > 0
-        && !isSearching
+    const hasHero = isConnected && trendingHeroMedia.length > 0 && !isSearching
     const searchHeaderHeight = isConnected ? LIBRARY_SEARCH_HEADER_BASE_HEIGHT : 0
 
     const handleRefresh = React.useCallback(() => {
@@ -193,9 +194,19 @@ function MobileLibraryScreen() {
                             topPadding={searchHeaderHeight}
                         />
                     ) : (
+                        <>
+                        {isConnected && hasHero && (
+                            <DiscoverHeroCarouselBackdrop
+                                media={trendingHeroMedia}
+                                currentIndex={heroController.currentIndex}
+                                screenWidth={heroController.screenWidth}
+                                scrollX={heroController.scrollX}
+                                scrollY={scrollY}
+                            />
+                        )}
                         <Animated.FlatList
                             key={isConnected ? "online" : "offline"}
-                            data={isConnected ? homeItems : []}
+                            data={isConnected ? contentItems : []}
                             renderItem={({ item, index }) => (
                                 <MobileHomeItemView
                                     item={item}
@@ -213,6 +224,13 @@ function MobileLibraryScreen() {
                                 />
                             )}
                             keyExtractor={(item, index) => `${item.id}-${item.type}-${index}`}
+                            ListHeaderComponent={isConnected && hasHero ? (
+                                <DiscoverHeroCarouselInteractionLayer
+                                    media={trendingHeroMedia}
+                                    type="anime"
+                                    controller={heroController}
+                                />
+                            ) : null}
                             extraData={{ recentlyAired, missedSequels, trendingMedia, rawAnimeCollection }}
                             ListFooterComponent={(
                                 <View className="gap-4">
@@ -241,9 +259,10 @@ function MobileLibraryScreen() {
                             onScroll={scrollHandler}
                             scrollEventThrottle={16}
                         />
+                        </>
                     )}
 
-                    {isConnected && (
+                            {isConnected && (
                         <LibrarySearchHeader
                             value={searchQuery}
                             onChangeText={setSearchQuery}

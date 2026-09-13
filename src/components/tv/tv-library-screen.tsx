@@ -40,6 +40,7 @@ import {
     getHomeItemStringArrayOption,
     getHomeItemStringOption,
     normalizeTVHomeItems,
+    getHomeContentItems,
 } from "@/lib/home/home-items"
 import { router, useFocusEffect, useIsFocused } from "expo-router"
 import { useSetAtom } from "jotai"
@@ -183,7 +184,7 @@ export function TVLibraryScreen() {
         () => new Set(homeItems?.map(item => item.type) ?? []),
         [homeItems],
     )
-    const needsTrending = homeItemTypes.has("discover-header")
+    const needsTrending = isConnected
     const needsRecent = homeItemTypes.has("aired-recently")
     const needsMissedSequels = homeItemTypes.has("missed-sequels")
     const needsMyLists = homeItemTypes.has("my-lists")
@@ -327,6 +328,7 @@ export function TVLibraryScreen() {
         const hideScore = serverStatus?.settings?.anilist?.hideAudienceScore ?? false
 
         return trendingMedia
+            .filter(media => media.status !== "NOT_YET_RELEASED")
             .slice(0, 12)
             .map(media => ({
                 key: `discover-${media.id}`,
@@ -407,7 +409,7 @@ export function TVLibraryScreen() {
                         autoCorrect={false}
                         autoCapitalize="none"
                         returnKeyType="search"
-                        preferred={heroItems.length === 0}
+                        preferred={trendingHeroItems.length === 0}
                         navOnUp
                         floating
                         containerStyle={{ borderRadius: tvSize(99) }}
@@ -555,15 +557,11 @@ function TVHomeContent({
     scrollHandler,
 }: TVHomeContentProps) {
     const contentItems = React.useMemo(
-        () => items.filter(item => item.type !== "anime-continue-watching-header"),
+        () => getHomeContentItems(items),
         [items],
     )
     const firstFocusableIndex = React.useMemo(() => contentItems.findIndex(item => {
         switch (item.type) {
-            case "anime-continue-watching-header":
-                return heroItems.length > 0
-            case "discover-header":
-                return trendingHeroItems.length > 0
             case "anime-continue-watching":
                 return continueWatchingList.length > 0
             case "anime-library":
@@ -595,9 +593,9 @@ function TVHomeContent({
             onScroll={scrollHandler}
             scrollEventThrottle={16}
         >
-            {heroItems.length > 0 ? (
+            {trendingHeroItems.length > 0 ? (
                 <View style={{ minHeight: tvSize(560) }}>
-                    <TVHeroCarousel items={heroItems} active={isFocused} preferred loading={isLoading} navOnUp />
+                    <TVHeroCarousel items={trendingHeroItems} active={isFocused} preferred loading={isLoading} navOnUp />
                 </View>
             ) : null}
             {contentItems.map((item, index) => (
@@ -605,7 +603,7 @@ function TVHomeContent({
                     key={`${item.id}-${item.type}`}
                     item={item}
                     index={index}
-                    navOnUp={index === firstFocusableIndex}
+                    navOnUp={trendingHeroItems.length === 0 && index === firstFocusableIndex}
                     heroItems={heroItems}
                     trendingHeroItems={trendingHeroItems}
                     trendingMedia={trendingMedia}
@@ -652,15 +650,7 @@ function TVHomeItemView({
             return null
 
         case "discover-header":
-            return (
-                <TVShelf
-                    title={homeItemTitle(item)}
-                    media={trendingMedia}
-                    showAudienceScore
-                    first={index === 0}
-                    navOnUp={navOnUp && heroItems.length === 0}
-                />
-            )
+            return null
 
         case "anime-continue-watching":
             return (

@@ -3,6 +3,7 @@ import test from "node:test"
 import type { Models_HomeItem } from "../src/api/generated/types.ts"
 import {
     DEFAULT_TV_HOME_ITEMS,
+    getHomeContentItems,
     getHomeItemStringArrayOption,
     getHomeItemStringOption,
     normalizeTVHomeItems,
@@ -66,4 +67,26 @@ test("option helpers trim strings and discard invalid array entries", () => {
     assert.equal(getHomeItemStringOption(homeItem, "name"), "Trending")
     assert.deepEqual(getHomeItemStringArrayOption(homeItem, "genres"), ["Action", "Sci-Fi"])
     assert.equal(getHomeItemStringOption(homeItem, "missing"), undefined)
+})
+
+test("content rows omit legacy headers while preserving configured order", () => {
+    const rows = [
+        item({ id: "discover", type: "discover-header", schemaVersion: 1 }),
+        item({ id: "recent", type: "aired-recently", schemaVersion: 1 }),
+        item({ id: "continue-header", type: "anime-continue-watching-header", schemaVersion: 1 }),
+    ]
+    const result = getHomeContentItems(rows)
+    assert.deepEqual(result.map(entry => [entry.id, entry.type]), [
+        ["recent", "aired-recently"],
+        ["continue-header", "anime-continue-watching"],
+    ])
+    assert.equal(rows[2]?.type, "anime-continue-watching-header")
+})
+
+test("explicit continue row prevents duplicate legacy header", () => {
+    const result = getHomeContentItems([
+        item({ id: "header", type: "anime-continue-watching-header", schemaVersion: 1 }),
+        item({ id: "continue", type: "anime-continue-watching", schemaVersion: 1 }),
+    ])
+    assert.deepEqual(result.map(entry => entry.id), ["continue"])
 })
