@@ -15,6 +15,10 @@ function loadModule(path: string, dependencies: Record<string, unknown> = {}) {
     runInNewContext(outputText, {
         module,
         exports: module.exports,
+        // The controller arms a 45 s timeout. Expose the host timers so tests
+        // can swap them for node:test mock timers when exercising the timeout.
+        setTimeout,
+        clearTimeout,
         require: (name: string) => {
             assert.ok(Object.hasOwn(dependencies, name), `Missing test dependency: ${name}`)
             return dependencies[name]
@@ -157,4 +161,32 @@ test("a disconnected socket does not leave a plugin request loading", () => {
     assert.equal(h.loading, false)
     h.receive(batch([stateEvent({ results: [{ name: "late" }] })]))
     assert.equal(h.results.length, 0)
+})
+
+test("a plugin request that never answers times out after 45 seconds", (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] })
+    const h = controllerHarness()
+    assert.equal(h.controller.request({ episodeNumber: 1 }), true)
+    assert.equal(h.open, true)
+    assert.equal(h.loading, true)
+    t.mock.timers.tick(44_999)
+    assert.equal(h.open, true)
+    assert.equal(h.loading, true)
+    t.mock.timers.tick(1)
+    assert.equal(h.open, false)
+    assert.equal(h.loading, false)
+    assert.match(h.error ?? "", /45 seconds/)
+})
+
+test("a settled response cancels the timeout clock", (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] })
+    const h = controllerHarness()
+    h.controller.request({ episodeNumber: 1 })
+    h.receive(batch([stateEvent({ loading: false, results: [{ name: "fast" }] })]))
+    assert.equal(h.loading, false)
+    // Advancing past the timeout window must not fire anything anymore.
+    t.mock.timers.tick(60_000)
+    assert.equal(h.open, true)
+    assert.equal(h.loading, false)
+    assert.equal(h.results.length, 1)
 })
