@@ -164,12 +164,13 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
         clearRequestTimeout()
         requestTimeout.current = setTimeout(() => {
             if (requestToken.current !== requestId) return
+            const message = `AIOStreams did not respond within ${Math.round(AIOSTREAMS_REQUEST_TIMEOUT_MS / 1000)} seconds. Please try again.`
             requestToken.current = null
             pendingEpisode.current = null
             setOpen(false)
             setLoading(false)
-            setError(`AIOStreams did not respond within ${Math.round(AIOSTREAMS_REQUEST_TIMEOUT_MS / 1000)} seconds. Please try again.`)
-            toast.error(`AIOStreams did not respond within ${Math.round(AIOSTREAMS_REQUEST_TIMEOUT_MS / 1000)} seconds. Please try again.`)
+            setError(message)
+            toast.error(message)
         }, AIOSTREAMS_REQUEST_TIMEOUT_MS)
         return true
     }, [entry.media, pluginAvailable, clearRequestTimeout])
