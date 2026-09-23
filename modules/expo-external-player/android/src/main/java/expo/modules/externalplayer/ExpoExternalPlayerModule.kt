@@ -25,7 +25,7 @@ object ExpoExternalPlayerLauncher {
         val candidates = buildCandidateIntents(uri, packageName?.takeIf { it.isNotBlank() })
 
         // player intent filters differ, so try the common video handoff shapes
-        candidates.forEach { (label, candidate) ->
+        for ((label, candidate) in candidates) {
             try {
                 context.startActivity(candidate)
                 Log.i(TAG, "Opened $packageName via $label for $uri")
