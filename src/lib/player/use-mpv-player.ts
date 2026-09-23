@@ -609,6 +609,25 @@ export function useMpvPlayer() {
         runNativeCommand("stopPictureInPicture", ref => ref.stopPictureInPicture())
     }, [runNativeCommand])
 
+    /**
+     * Asks the native view whether Picture-in-Picture is *actually* active and corrects
+     * the JS state. The state is otherwise only updated by a push event and can go stale
+     * (e.g. a missed/incorrect transition), which used to hide the whole TV player UI
+     * while the video kept playing.
+     */
+    const syncPictureInPicture = React.useCallback(async () => {
+        const ref = viewRef.current
+        if (!ref?.isPictureInPictureActive) return
+
+        try {
+            const active = await ref.isPictureInPictureActive()
+            setState(s => s.isPiPActive === active ? s : { ...s, isPiPActive: active })
+        }
+        catch {
+            // The player can disappear while this crosses the bridge.
+        }
+    }, [])
+
     const addSubtitleFile = React.useCallback(async (url: string, select: boolean) => {
         const ref = viewRef.current
         if (!ref) return
@@ -663,6 +682,7 @@ export function useMpvPlayer() {
         setSubtitleAlignY,
         startPiP,
         stopPiP,
+        syncPictureInPicture,
         addSubtitleFile,
     }
 }

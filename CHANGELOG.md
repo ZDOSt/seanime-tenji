@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.3.5 (Android TV)
+
+- 🦺 Player (Android TV): the player UI no longer disappears when the picture-in-picture
+  state is reported incorrectly (the activity pausing used to be treated as PiP)
+- 🦺 Player (Android TV): layout is measured from the live window, so overlays and dialogs
+  cannot be squashed into a stripe or left half-clipped after a window change
+- ⚡️ Player (Android TV): pressing BACK twice quickly always leaves the player, even when
+  the exit prompt is not visible
+- ⚡️ Player (Android TV): on-screen diagnostics (window/screen size, PiP state from JS and
+  native, video view size, mpv output) — shown with "Playback stats" and automatically when
+  a size/PiP mismatch is detected
+
 ## v0.3.0
 
 - 🎉 New Releases: AndroidTV and tvOS

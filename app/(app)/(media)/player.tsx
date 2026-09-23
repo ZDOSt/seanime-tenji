@@ -37,6 +37,8 @@ import { getBufferedRatio } from "@/components/features/player/progress"
 import type { PlayerPanel } from "@/components/features/player/types"
 import { createGestureRefs, syncGestureRef } from "@/components/features/player/types"
 import { TV, TVPlayerControls, TVPlayerDialog, TVPlayerPanel } from "@/components/tv"
+import { TVPlayerDiagnostics } from "@/components/tv/tv-player-diagnostics"
+import { getTvScale, useTvScale } from "@/components/tv/tv-scale"
 import { isLocalServer } from "@/lib/downloads"
 import { useIsServerConnected } from "@/lib/offline"
 import {
@@ -64,6 +66,7 @@ import { SkipForward } from "lucide-react-native"
 import React from "react"
 import {
     ActivityIndicator,
+    AppState,
     BackHandler,
     Dimensions,
     Platform,
@@ -90,6 +93,9 @@ const DEFAULT_TEXT_SUBTITLE_MARGIN_Y = 34
 const SEEK_SNAP_MAX_THRESHOLD = 4
 const SEEK_SNAP_DURATION_RATIO = 0.02
 const SEEK_SNAP_VERTICAL_DECAY = 15
+// Two BACK presses within this window always leave the player, no matter what state the
+// overlay/panel machine is in.
+const DOUBLE_BACK_WINDOW_MS = 1500
 
 
 function isAssSubtitleCodec(codec?: string) {
@@ -126,6 +132,9 @@ function PlayerScreenInner() {
         return rawInsets
     }, [rawInsets])
     const { width: windowWidth, height: windowHeight } = useWindowDimensions()
+    // Keeps the TV layout scale in sync with the live window (and re-renders this screen
+    // when it changes), so the player UI can never stay sized for a stale window.
+    useTvScale()
 
     const cleanupSession = useCleanupPlaybackSession()
     const serverUrl = useServerUrl()
@@ -164,41 +173,115 @@ function PlayerScreenInner() {
     const error = useAtomValue(playerErrorAtom)
     const [nextEpisodePrompt, setNextEpisodePrompt] = React.useState<NextEpisodePrompt | null>(null)
     const [showExitPrompt, setShowExitPrompt] = React.useState(false)
+    // Two BACK presses inside this window always exit the player (see the back handler).
+    const lastBackPressAtRef = React.useRef(0)
 
     // player + prefs
     const [prefs, updatePrefs] = usePlayerPreferences()
     const player = useMpvPlayer()
     const { state } = player
     const [stats, setStats] = React.useState<TechnicalInfo | null>(null)
+    // Size of the video container as laid out by React Native — the number that tells us
+    // whether the player *UI* was squeezed (while the native video surface kept its size).
+    const [videoViewSize, setVideoViewSize] = React.useState({ width: 0, height: 0 })
     const playerSeekTo = player.seekTo
     const playerSetVideoZoom = player.setVideoZoom
     const playerSetSubtitlePosition = player.setSubtitlePosition
     const playerSetSubtitleMarginY = player.setSubtitleMarginY
 
+    // Physical screen size. Used to sanity-check the Picture-in-Picture flag: the OS only
+    // shrinks the window for PiP, so a "full size" window can never be PiP.
+    const physicalScreen = React.useMemo(() => {
+        const screen = Dimensions.get("screen")
+        return {
+            width: Math.max(screen.width, screen.height),
+            height: Math.min(screen.width, screen.height),
+        }
+    }, [windowWidth, windowHeight])
+
+    const windowIsSmall = physicalScreen.width > 0
+        && physicalScreen.height > 0
+        && (windowWidth < physicalScreen.width * 0.75 || windowHeight < physicalScreen.height * 0.75)
+
+    // PiP diagnostics + state reconciliation (TV/Android). The polled value is the truth the
+    // readout below shows, and it also takes precedence over the push-event flag.
+    const [nativePiP, setNativePiP] = React.useState<boolean | null>(null)
+    const [appState, setAppState] = React.useState<string>(AppState.currentState)
+
+    /**
+     * Verified PiP state.
+     *
+     * `state.isPiPActive` comes from a native push event and has been wrong before (the
+     * activity pausing for the TV's own overlays used to be reported as PiP). Trusting it
+     * unconditionally hid the whole TV player UI while the video kept playing and made BACK
+     * look dead. PiP is now only believed when the window really is smaller than the screen,
+     * and once the native view has answered, its answer wins.
+     */
+    const isPiPActive = windowIsSmall && (nativePiP === null ? state.isPiPActive : nativePiP)
+
     const { screenWidth, screenHeight } = React.useMemo(() => {
-        if (state.isPiPActive) {
+        if (isPiPActive) {
             return {
                 screenWidth: windowWidth,
                 screenHeight: windowHeight,
             }
         }
-        if (Platform.OS === "android") {
-            const screen = Dimensions.get("screen")
-            return {
-                screenWidth: Math.max(screen.width, screen.height),
-                screenHeight: Math.min(screen.width, screen.height),
-            }
-        }
         return {
-            screenWidth: windowWidth,
-            screenHeight: windowHeight,
+            screenWidth: physicalScreen.width,
+            screenHeight: physicalScreen.height,
         }
-    }, [windowWidth, windowHeight, state.isPiPActive])
+    }, [isPiPActive, physicalScreen, windowWidth, windowHeight])
 
     useContinuitySync(player.source, state)
 
+    const syncPiP = player.syncPictureInPicture
+
     React.useEffect(() => {
-        if (!prefs.showStats || state.isPiPActive) {
+        if (Platform.OS !== "android") return
+
+        let stopped = false
+
+        const poll = async () => {
+            const current = player.viewRef.current
+            if (!current?.isPictureInPictureActive) return
+            try {
+                const active = await current.isPictureInPictureActive()
+                if (!stopped) setNativePiP(active)
+            }
+            catch {
+                // Ignore: the view can go away mid-request.
+            }
+        }
+
+        const reconcile = () => {
+            void poll()
+            void syncPiP()
+        }
+
+        reconcile()
+        const interval = setInterval(reconcile, 3000)
+        const subscription = AppState.addEventListener("change", next => {
+            setAppState(next)
+            if (next === "active") reconcile()
+        })
+
+        return () => {
+            stopped = true
+            clearInterval(interval)
+            subscription.remove()
+        }
+    }, [player.viewRef, syncPiP])
+
+    // Re-check shortly after any PiP claim, so a wrong one corrects itself instead of
+    // hiding the UI until the app is restarted.
+    React.useEffect(() => {
+        if (Platform.OS !== "android" || !state.isPiPActive) return
+        const timer = setTimeout(() => void syncPiP(), 500)
+        return () => clearTimeout(timer)
+    }, [state.isPiPActive, syncPiP])
+
+    React.useEffect(() => {
+        if (!prefs.showStats) {
             setStats(null)
             return
         }
@@ -226,7 +309,7 @@ function PlayerScreenInner() {
             stopped = true
             if (timer) clearTimeout(timer)
         }
-    }, [player.viewRef, prefs.showStats, source?.id, state.isPiPActive])
+    }, [player.viewRef, prefs.showStats, source?.id])
 
     const { data: watchHistory } = useGetContinuityWatchHistory()
     const resumeAppliedForRef = React.useRef<string | null>(null)
@@ -736,8 +819,14 @@ function PlayerScreenInner() {
         saveReturnFocus()
         player.stop()
         stopTVTorrent()
-        if (canGoBack()) back()
-    }, [back, canGoBack, player, saveReturnFocus, stopTVTorrent])
+        if (canGoBack()) {
+            back()
+        } else {
+            // The player can be the first screen in the stack (deep link, restored session).
+            // Without this fallback the exit path silently did nothing at all.
+            replace("/(app)/(tabs)/(library)")
+        }
+    }, [back, canGoBack, player, replace, saveReturnFocus, stopTVTorrent])
 
     useTVEventHandler((event) => {
         if (!Platform.isTV || !event) return
@@ -800,6 +889,23 @@ function PlayerScreenInner() {
         if (!Platform.isTV) return
 
         const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+            // Escape hatch: two BACK presses in quick succession always leave the player,
+            // regardless of any internal state. The exit prompt can be invisible (or the UI
+            // mis-sized) when something goes wrong, and that used to leave force-closing the
+            // app as the only way out.
+            const now = Date.now()
+            const doublePress = now - lastBackPressAtRef.current < DOUBLE_BACK_WINDOW_MS
+            lastBackPressAtRef.current = now
+
+            if (doublePress) {
+                lastBackPressAtRef.current = 0
+                setShowExitPrompt(false)
+                setPanel(null)
+                setNextEpisodePrompt(null)
+                handleBack()
+                return true
+            }
+
             if (showExitPrompt) {
                 setShowExitPrompt(false)
                 return true
@@ -1081,9 +1187,29 @@ function PlayerScreenInner() {
     const displayTime = swipeSeek.swipeSeeking?.currentTime ?? seekingDisplay ?? state.currentTime
     const progressRatio = state.duration > 0 ? clamp(displayTime / state.duration, 0, 1) : 0
     const bufferedRatio = getBufferedRatio(state.currentTime, state.duration, state.cacheSeconds)
-    const isPiPActive = state.isPiPActive
+    // `isPiPActive` is the verified value computed above (native flag + window sanity check).
     const isSeeking = seekingDisplay !== null || swipeSeek.swipeSeeking !== null
     const seekingChapter = isSeeking ? getChapterAtTime(chapters, displayTime) : undefined
+
+    /*
+     * Diagnostics.
+     *
+     * Shown when the owner enables "Playback stats" in the player panel, and *automatically*
+     * when something looks wrong: a squeezed window, or a PiP flag that the native side does
+     * not agree with. Reading these numbers off the TV is how we tell "UI collapsed" apart
+     * from "window shrank" apart from "PiP flag stale".
+     */
+    const pipFlagSuspect = state.isPiPActive !== (nativePiP === true)
+    const uiSquashed = windowIsSmall && nativePiP !== true
+    const showDiagnostics = Platform.isTV && (prefs.showStats || pipFlagSuspect || uiSquashed)
+    const diagnosticsLines = showDiagnostics
+        ? [
+            `app ${appState}  window ${Math.round(windowWidth)}x${Math.round(windowHeight)}  screen ${physicalScreen.width}x${physicalScreen.height}  scale ${getTvScale().toFixed(2)}`,
+            `pip js=${state.isPiPActive ? "on" : "off"} native=${nativePiP === null ? "?" : nativePiP ? "on" : "off"} trusted=${isPiPActive ? "on" : "off"}`,
+            `video view ${videoViewSize.width}x${videoViewSize.height}  source ${Math.round((stats?.videoWidth ?? 0))}x${Math.round((stats?.videoHeight ?? 0))}`,
+            `vo ${stats?.voDriver ?? "?"}  hwdec ${stats?.hwdec ?? "?"}  drop ${stats?.droppedFrames ?? "?"}  buf ${stats?.isBuffering ? "yes" : "no"}`,
+        ]
+        : []
 
     const chapterMarkers = (() => {
         if (!chapters || chapters.length <= 1 || state.duration <= 0 || seekBarWidth <= 0) return []
@@ -1173,7 +1299,15 @@ function PlayerScreenInner() {
                 <StatusBar hidden />
 
 
-                <View style={{ flex: 1, width: "100%", height: "100%", position: "relative", justifyContent: "center" }}>
+                <View
+                    style={{ flex: 1, width: "100%", height: "100%", position: "relative", justifyContent: "center" }}
+                    onLayout={event => {
+                        const { width, height } = event.nativeEvent.layout
+                        const next = { width: Math.round(width), height: Math.round(height) }
+                        setVideoViewSize(current =>
+                            current.width === next.width && current.height === next.height ? current : next)
+                    }}
+                >
                     <MpvPlayerView
                         ref={player.viewRef}
                         source={player.videoSource}
@@ -1188,6 +1322,10 @@ function PlayerScreenInner() {
                         style={{ width: "100%", height: "100%" }}
                     />
                 </View>
+
+                {/* Diagnostics: above everything and outside the PiP gates, so it stays
+                    visible (and readable) exactly when the UI is mis-sized or suppressed. */}
+                <TVPlayerDiagnostics lines={diagnosticsLines} />
 
 
                 {state.status === "buffering" && !isPiPActive && (

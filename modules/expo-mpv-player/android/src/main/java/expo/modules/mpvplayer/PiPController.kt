@@ -268,11 +268,25 @@ class PiPController(private val context: Context, private val appContext: AppCon
             }
 
             override fun onActivityPaused(activity: Activity) {
-                if (playbackRate > 0 && !isInPiPMode) {
+                // Never *assume* Picture-in-Picture from a pause: the activity also pauses for
+                // the TV's own overlays, a system dialog, home, etc. Reporting PiP there hides
+                // the entire player UI on the JS side while the video keeps playing. The PiP
+                // transition is asynchronous, so re-check shortly after the pause instead.
+                if (!(playbackRate > 0) || isInPiPMode) return
+                if (activity.isInPictureInPictureMode) {
                     isInPiPMode = true
                     pipEntryNotified = true
                     delegate?.onPictureInPictureModeChanged(true)
+                    return
                 }
+                pipHandler.postDelayed({
+                    if (isInPiPMode) return@postDelayed
+                    if (playbackRate <= 0) return@postDelayed
+                    if (!activity.isInPictureInPictureMode) return@postDelayed
+                    isInPiPMode = true
+                    pipEntryNotified = true
+                    delegate?.onPictureInPictureModeChanged(true)
+                }, 350)
             }
 
             override fun onActivityStopped(activity: Activity) {
