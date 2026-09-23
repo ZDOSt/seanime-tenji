@@ -313,6 +313,31 @@ class MPVLayerRenderer(private val context: Context) : MPVLib.EventObserver, MPV
         }
     }
 
+    /** True while mpv has decoded video, i.e. the picture has something to show. */
+    fun hasVideoOutput(): Boolean = videoWidth > 0 && videoHeight > 0
+
+    /**
+     * Asks mpv for a fresh frame without rebuffering and without leaving playback paused.
+     *
+     * After the screen was off, the video surface comes back but mpv may not draw again — the
+     * audio keeps running while the picture stays black. `frame-step` forces a frame (it pauses
+     * playback as a side effect, hence the explicit resume).
+     */
+    fun nudgeFrame() {
+        if (!initialized) return
+
+        try {
+            val wasPlaying = !isPaused
+            MPVLib.command(arrayOf("frame-step"))
+            if (wasPlaying) {
+                MPVLib.setPropertyBoolean("pause", false)
+            }
+            Log.i(TAG, "[Surface] nudgeFrame — wasPlaying=$wasPlaying, video=${videoWidth}x$videoHeight")
+        } catch (e: Exception) {
+            Log.w(TAG, "[Surface] nudgeFrame failed", e)
+        }
+    }
+
     fun recoverVideoOutput(surface: Surface?, playWhenReady: Boolean = false): Boolean {
         if (!initialized) return false
         val url = currentUrl ?: return false

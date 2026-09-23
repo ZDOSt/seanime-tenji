@@ -128,6 +128,9 @@ class ExpoMpvPlayerModule : Module() {
             // playback
             AsyncFunction("play") { view: MpvPlayerView -> view.play() }
             AsyncFunction("pause") { view: MpvPlayerView -> view.pause() }
+            // Screen off/on (or any hidden-then-shown window) can leave mpv drawing nothing while
+            // the audio keeps playing; the app asks for a redraw when it comes back to the front.
+            AsyncFunction("redrawVideoOutput") { view: MpvPlayerView -> view.redrawVideoOutput() }
             AsyncFunction("seekTo") { view: MpvPlayerView, position: Double -> view.seekTo(position) }
             AsyncFunction("seekBy") { view: MpvPlayerView, offset: Double -> view.seekBy(offset) }
             AsyncFunction("setSpeed") { view: MpvPlayerView, speed: Double -> view.setSpeed(speed) }

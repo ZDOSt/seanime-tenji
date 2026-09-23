@@ -605,6 +605,14 @@ export function useMpvPlayer() {
         })
     }, [handleNativeCommandError])
 
+    /**
+     * Screen off/on can leave mpv drawing nothing while the audio keeps running. The view
+     * re-attaches its surface and forces a frame; it also reloads in place if that fails.
+     */
+    const redrawVideoOutput = React.useCallback(() => {
+        runNativeCommand("redrawVideoOutput", ref => ref.redrawVideoOutput())
+    }, [runNativeCommand])
+
     const stopPiP = React.useCallback(() => {
         runNativeCommand("stopPictureInPicture", ref => ref.stopPictureInPicture())
     }, [runNativeCommand])
@@ -682,6 +690,7 @@ export function useMpvPlayer() {
         setSubtitleAlignY,
         startPiP,
         stopPiP,
+        redrawVideoOutput,
         syncPictureInPicture,
         addSubtitleFile,
     }

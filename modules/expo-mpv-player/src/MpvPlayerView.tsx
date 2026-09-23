@@ -15,6 +15,7 @@ export const MpvPlayerView = React.forwardRef<MpvPlayerViewRef, MpvPlayerViewPro
             // playback
             play: () => nativeRef.current?.play() ?? Promise.resolve(),
             pause: () => nativeRef.current?.pause() ?? Promise.resolve(),
+            redrawVideoOutput: () => nativeRef.current?.redrawVideoOutput() ?? Promise.resolve(),
             seekTo: (position: number) => nativeRef.current?.seekTo(position) ?? Promise.resolve(),
             seekBy: (offset: number) => nativeRef.current?.seekBy(offset) ?? Promise.resolve(),
             setSpeed: (speed: number) => nativeRef.current?.setSpeed(speed) ?? Promise.resolve(),

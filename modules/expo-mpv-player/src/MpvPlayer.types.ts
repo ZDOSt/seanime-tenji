@@ -126,6 +126,8 @@ export type MpvPlayerViewRef = {
     // playback
     play: () => Promise<void>
     pause: () => Promise<void>
+    /** Re-attach the video surface and force a fresh frame (screen off/on, window regained). */
+    redrawVideoOutput: () => Promise<void>
     seekTo: (position: number) => Promise<void>
     seekBy: (offset: number) => Promise<void>
     setSpeed: (speed: number) => Promise<void>

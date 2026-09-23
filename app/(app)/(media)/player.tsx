@@ -265,7 +265,11 @@ function PlayerScreenInner() {
         const interval = setInterval(reconcile, 3000)
         const subscription = AppState.addEventListener("change", next => {
             setAppState(next)
-            if (next === "active") reconcile()
+            if (next !== "active") return
+            reconcile()
+            // Screen off/on can leave the player with audio only and a black picture: the native
+            // view re-attaches its surface, forces a frame, and reloads in place if that fails.
+            player.redrawVideoOutput()
         })
 
         return () => {
@@ -273,7 +277,7 @@ function PlayerScreenInner() {
             clearInterval(interval)
             subscription.remove()
         }
-    }, [player.viewRef, syncPiP])
+    }, [player.redrawVideoOutput, player.viewRef, syncPiP])
 
     // Re-check shortly after any PiP claim, so a wrong one corrects itself instead of
     // hiding the UI until the app is restarted.

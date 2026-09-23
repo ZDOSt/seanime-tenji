@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.3.3 (phones/tablets)
+
+- 🦺 Player (Android): the picture returns after the screen was turned off and back on — the
+  player now re-attaches its video surface, forces a fresh frame, and reloads in place when mpv
+  still reports no video (previously the audio kept playing over a black screen)
+
 ## v0.3.6 (Android TV)
 
 - 🦺 External player (Android TV): a stream that can only fail there is no longer handed over —

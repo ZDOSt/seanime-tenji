@@ -17,6 +17,7 @@ import android.os.Looper
 import android.util.Log
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.view.View
 import android.view.ViewGroup
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.viewevent.EventDispatcher
@@ -66,6 +67,7 @@ class MpvPlayerView(context: Context, appContext: AppContext) : ExpoView(context
 
     private val pipHandler = Handler(Looper.getMainLooper())
     private val recoverRunnable = Runnable { recoverVideoOutput() }
+    private val redrawRunnable = Runnable { redrawVideoOutput() }
 
     init {
         setBackgroundColor(Color.BLACK)
@@ -105,6 +107,9 @@ class MpvPlayerView(context: Context, appContext: AppContext) : ExpoView(context
         if (rendererStarted) {
             renderer?.attachSurface(holder.surface)
             syncSurfaceSize()
+            // The surface can come back (screen on, PiP exit) without mpv drawing again — audio
+            // keeps playing and the picture stays black. Force a frame once the surface is valid.
+            if (intendedPlayState) scheduleRedraw()
         }
 
         applyPendingSourceR()
@@ -112,6 +117,17 @@ class MpvPlayerView(context: Context, appContext: AppContext) : ExpoView(context
         if (hostForeground && pipRecoveryPending) {
             scheduleRecovery()
         }
+    }
+
+    override fun onWindowVisibilityChanged(visibility: Int) {
+        super.onWindowVisibilityChanged(visibility)
+
+        if (visibility != View.VISIBLE) return
+        if (!rendererStarted || currentUrl == null) return
+
+        // Screen turned back on while the player is still running: make sure the picture returns.
+        Log.i(TAG, "[Surface] window visible again — scheduling a redraw")
+        scheduleRedraw()
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
@@ -501,9 +517,51 @@ class MpvPlayerView(context: Context, appContext: AppContext) : ExpoView(context
         if (!rendererStarted || currentUrl == null) return
         if (isPictureInPictureActive()) return
 
-        if (!pipRecoveryPending && (renderer?.isTv != true || intendedPlayState)) return
+        if (pipRecoveryPending) {
+            scheduleRecovery()
+            return
+        }
 
-        scheduleRecovery()
+        // Phones included. Losing the surface while the screen was off used to be skipped here
+        // (`renderer.isTv != true || intendedPlayState`), which left audio playing with a black
+        // picture on mobile. The redraw is cheap and falls back to a full reload if it fails.
+        scheduleRedraw()
+    }
+
+    private fun scheduleRedraw() {
+        pipHandler.removeCallbacks(redrawRunnable)
+        pipHandler.postDelayed(redrawRunnable, 300)
+    }
+
+    /**
+     * Re-attaches the surface and asks mpv to draw again. This is the recovery for "video only
+     * stopped being visible" (screen off/on, window hidden and shown, PiP exit on phones).
+     */
+    fun redrawVideoOutput() {
+        if (!rendererStarted || currentUrl == null) return
+        if (!surfaceReady || isPictureInPictureActive()) return
+
+        val surface = surfaceView.holder.surface.takeIf { it.isValid } ?: return
+
+        Log.i(
+            TAG,
+            "[Surface] redraw — playing=$intendedPlayState, videoOutput=${renderer?.hasVideoOutput()}",
+        )
+        renderer?.attachSurface(surface)
+        syncSurfaceSize()
+        if (intendedPlayState) {
+            renderer?.nudgeFrame()
+        }
+
+        // If mpv still reports no decoded video shortly after, reload the source in place.
+        pipHandler.postDelayed({
+            if (!hostForeground || !rendererStarted) return@postDelayed
+            if (!surfaceReady || isPictureInPictureActive()) return@postDelayed
+            if (renderer?.hasVideoOutput() == true) return@postDelayed
+
+            Log.w(TAG, "[Surface] still no video output — reloading at the current position")
+            recoverVideoOutput(force = true)
+        }, 700)
     }
 
     private fun scheduleRecovery() {
@@ -511,12 +569,12 @@ class MpvPlayerView(context: Context, appContext: AppContext) : ExpoView(context
         pipHandler.postDelayed(recoverRunnable, 300)
     }
 
-    private fun recoverVideoOutput() {
+    private fun recoverVideoOutput(force: Boolean = false) {
         if (!hostForeground || !rendererStarted || currentUrl == null) return
         if (!surfaceReady || isPictureInPictureActive()) return
 
         val pipRecovery = pipRecoveryPending
-        if (!pipRecovery && (renderer?.isTv != true || intendedPlayState)) return
+        if (!force && !pipRecovery && (renderer?.isTv != true || intendedPlayState)) return
 
         val surface = surfaceView.holder.surface.takeIf { it.isValid } ?: return
         val recovered = renderer?.recoverVideoOutput(
