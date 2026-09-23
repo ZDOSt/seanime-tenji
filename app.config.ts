@@ -66,7 +66,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         },
         android: {
             jsEngine: "hermes",
-            versionCode: isTV ? 28 : 25,
+            versionCode: isTV ? 29 : 25,
             usesCleartextTraffic: true,
             adaptiveIcon: {
                 foregroundImage: "./src/assets/images/adaptive-icon.png",

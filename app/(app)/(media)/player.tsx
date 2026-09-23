@@ -52,6 +52,8 @@ import {
 import type { PlayerChapter } from "@/lib/player"
 import { getLocalEpisodePlaybackSource } from "@/lib/player"
 import { usePlayerPreferences } from "@/lib/player/player-preferences"
+import { isDoubleBackPress } from "@/lib/player/back-escape"
+import { isPiPFlagSuspect, isUiSquashed, isWindowSmall, resolvePiPActive } from "@/lib/player/pip-state"
 import type { MobilePlaybackSource } from "@/lib/player/types"
 import { useContinuitySync } from "@/lib/player/use-continuity-sync"
 import { useMpvPlayer } from "@/lib/player/use-mpv-player"
@@ -93,9 +95,6 @@ const DEFAULT_TEXT_SUBTITLE_MARGIN_Y = 34
 const SEEK_SNAP_MAX_THRESHOLD = 4
 const SEEK_SNAP_DURATION_RATIO = 0.02
 const SEEK_SNAP_VERTICAL_DECAY = 15
-// Two BACK presses within this window always leave the player, no matter what state the
-// overlay/panel machine is in.
-const DOUBLE_BACK_WINDOW_MS = 1500
 
 
 function isAssSubtitleCodec(codec?: string) {
@@ -199,25 +198,29 @@ function PlayerScreenInner() {
         }
     }, [windowWidth, windowHeight])
 
-    const windowIsSmall = physicalScreen.width > 0
-        && physicalScreen.height > 0
-        && (windowWidth < physicalScreen.width * 0.75 || windowHeight < physicalScreen.height * 0.75)
-
     // PiP diagnostics + state reconciliation (TV/Android). The polled value is the truth the
     // readout below shows, and it also takes precedence over the push-event flag.
     const [nativePiP, setNativePiP] = React.useState<boolean | null>(null)
     const [appState, setAppState] = React.useState<string>(AppState.currentState)
 
     /**
-     * Verified PiP state.
+     * Verified PiP state — see `@/lib/player/pip-state`.
      *
      * `state.isPiPActive` comes from a native push event and has been wrong before (the
      * activity pausing for the TV's own overlays used to be reported as PiP). Trusting it
      * unconditionally hid the whole TV player UI while the video kept playing and made BACK
-     * look dead. PiP is now only believed when the window really is smaller than the screen,
-     * and once the native view has answered, its answer wins.
+     * look dead.
      */
-    const isPiPActive = windowIsSmall && (nativePiP === null ? state.isPiPActive : nativePiP)
+    const pipState = {
+        windowWidth,
+        windowHeight,
+        screenWidth: physicalScreen.width,
+        screenHeight: physicalScreen.height,
+        jsFlag: state.isPiPActive,
+        nativeFlag: nativePiP,
+    }
+    const windowIsSmall = isWindowSmall(windowWidth, windowHeight, physicalScreen.width, physicalScreen.height)
+    const isPiPActive = resolvePiPActive(pipState)
 
     const { screenWidth, screenHeight } = React.useMemo(() => {
         if (isPiPActive) {
@@ -894,7 +897,7 @@ function PlayerScreenInner() {
             // mis-sized) when something goes wrong, and that used to leave force-closing the
             // app as the only way out.
             const now = Date.now()
-            const doublePress = now - lastBackPressAtRef.current < DOUBLE_BACK_WINDOW_MS
+            const doublePress = isDoubleBackPress(lastBackPressAtRef.current, now)
             lastBackPressAtRef.current = now
 
             if (doublePress) {
@@ -1199,8 +1202,8 @@ function PlayerScreenInner() {
      * not agree with. Reading these numbers off the TV is how we tell "UI collapsed" apart
      * from "window shrank" apart from "PiP flag stale".
      */
-    const pipFlagSuspect = state.isPiPActive !== (nativePiP === true)
-    const uiSquashed = windowIsSmall && nativePiP !== true
+    const pipFlagSuspect = isPiPFlagSuspect(state.isPiPActive, nativePiP)
+    const uiSquashed = isUiSquashed(windowIsSmall, nativePiP)
     const showDiagnostics = Platform.isTV && (prefs.showStats || pipFlagSuspect || uiSquashed)
     const diagnosticsLines = showDiagnostics
         ? [
