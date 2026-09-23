@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.3.6 (Android TV)
+
+- 🦺 External player (Android TV): a stream that can only fail there is no longer handed over —
+  URLs that require a login are played by the built-in player (which sends the headers), and
+  loopback URLs are refused when the server runs elsewhere
+- ⚡️ External player: the handoff is logged (player, URL with the token masked, HTTP status of
+  a reachability probe) so a handoff that opens an idle player can be diagnosed from Profile → Logs
+- 🦺 External player (Android): more intent shapes are attempted for mpv, and each attempt is
+  logged to logcat
+
 ## v0.3.5 (Android TV)
 
 - 🦺 Player (Android TV): the player UI no longer disappears when the picture-in-picture

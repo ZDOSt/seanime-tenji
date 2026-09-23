@@ -1,5 +1,17 @@
+import {
+    classifyProbe,
+    decideExternalHandoff,
+    getExternalPlayerPackageName,
+    getExternalPlayerURL,
+    isProbeOk,
+    maskStreamUrl,
+} from "@/lib/player/external-player-url"
+import { logger } from "@/lib/utils/logger"
+import { toast } from "@/lib/utils/toast"
 import { ExpoExternalPlayer } from "expo-external-player"
 import { Linking, Platform } from "react-native"
+
+const log = logger("external-player")
 
 export type ExternalPlayerPreset = {
     id: string
@@ -129,51 +141,105 @@ export async function getInstalledExternalPlayers(): Promise<ExternalPlayerPrese
     return presets.filter((_, index) => installed[index])
 }
 
-/**
- * Build the final URL to hand to `Linking.openURL`.
- *
- * Handles:
- * - `{url}` template substitution
- * - intent:// scheme: strips http(s):// from the embedded URL so the
- *   final string is `intent://host/path#Intent;...`
- */
-export function getExternalPlayerURL(template: string, streamUrl: string): string {
-    let result = template.includes("{url}")
-        ? template.replace("{url}", streamUrl)
-        : streamUrl
+export { getExternalPlayerPackageName, getExternalPlayerURL }
 
-    if (template.startsWith("intent://")) {
-        const scheme = streamUrl.startsWith("https://") ? "https" : "http"
-        result = result
-            .replace("intent://http://", "intent://")
-            .replace("intent://https://", "intent://")
-            .replace("scheme=http;", `scheme=${scheme};`)
+/**
+ * Cheap reachability check before handing the URL to another app.
+ *
+ * The external player gets no credentials of its own, so an authenticated URL can never be
+ * played there — that is worth knowing before opening a player that shows nothing.
+ */
+async function probeStreamUrl(url: string): Promise<ReturnType<typeof classifyProbe>> {
+    if (url.startsWith("file://")) return classifyProbe(200)
+
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 4000)
+
+    try {
+        const response = await fetch(url, {
+            method: "GET",
+            headers: { Range: "bytes=0-1023" },
+            signal: controller.signal,
+        })
+        return classifyProbe(response.status)
+    }
+    catch {
+        return classifyProbe(null)
+    }
+    finally {
+        clearTimeout(timeout)
+    }
+}
+
+export async function openExternalPlayerURL(
+    template: string,
+    streamUrl: string,
+    options: { serverIsLocal?: boolean } = {},
+): Promise<boolean> {
+    const verdict = decideExternalHandoff({
+        url: streamUrl,
+        template,
+        serverIsLocal: options.serverIsLocal ?? false,
+    })
+
+    if (verdict !== "handoff") {
+        log.warning("External player handoff skipped", { verdict, url: maskStreamUrl(streamUrl) })
+        if (verdict === "blocked-loopback") {
+            toast.error("This stream only exists on this device — using the built-in player")
+        }
+        return false
     }
 
-    return result
-}
+    const packageName = getExternalPlayerPackageName(template)
+    log.info("Handing stream to external player", {
+        platform: Platform.OS,
+        packageName: packageName ?? "(via URL scheme)",
+        url: maskStreamUrl(streamUrl),
+    })
 
-export function getExternalPlayerPackageName(template: string): string | null {
-    const match = /(?:^|;)package=([^;]+)/.exec(template)
-    return match?.[1] ?? null
-}
+    // An external player has no credentials of its own: an authenticated URL can only ever
+    // show an idle player. Better to say so and use the built-in player, which sends headers.
+    const probe = await probeStreamUrl(streamUrl)
+    if (probe.blocked) {
+        log.warning("External player handoff blocked: the stream requires authentication", {
+            status: probe.status,
+            url: maskStreamUrl(streamUrl),
+        })
+        toast.error("This stream needs the built-in player (it requires a login)")
+        return false
+    }
+    if (!isProbeOk(probe.status)) {
+        log.warning("Stream did not answer the handoff probe; opening the external player anyway", {
+            status: probe.status ?? "no response",
+            url: maskStreamUrl(streamUrl),
+        })
+        toast.info("Sent to the external player — if it stays empty, press BACK and play again to use the built-in player")
+    }
 
-export async function openExternalPlayerURL(template: string, streamUrl: string): Promise<boolean> {
     // a downloaded file URL points into Seanime's private storage. we give the external player temporary access to the file
     if (streamUrl.startsWith("file://")) {
         if (Platform.OS === "android") {
-            return ExpoExternalPlayer.openFile(streamUrl, getExternalPlayerPackageName(template))
+            const openedFile = await ExpoExternalPlayer.openFile(streamUrl, packageName)
+            log.info("External player result", { opened: openedFile, mode: "file" })
+            return openedFile
         }
 
         if (Platform.OS === "ios") {
-            return ExpoExternalPlayer.openFile(streamUrl)
+            const openedFile = await ExpoExternalPlayer.openFile(streamUrl)
+            log.info("External player result", { opened: openedFile, mode: "file" })
+            return openedFile
         }
     }
 
     if (Platform.OS === "android") {
-        const packageName = getExternalPlayerPackageName(template)
         if (packageName) {
-            return ExpoExternalPlayer.open(streamUrl, packageName)
+            const opened = await ExpoExternalPlayer.open(streamUrl, packageName)
+            log.info("External player result", { opened, packageName })
+            if (!opened) {
+                log.warning("No installed player accepted the stream", { packageName })
+                toast.error("The external player could not open this stream — using the built-in player")
+            }
+            return opened
         }
     }
 
@@ -183,13 +249,18 @@ export async function openExternalPlayerURL(template: string, streamUrl: string)
         // android package visibility can make canOpenURL return false for installed intent targets
         if (Platform.OS !== "android") {
             const supported = await Linking.canOpenURL(launchUrl).catch(() => true)
-            if (!supported) return false
+            if (!supported) {
+                log.warning("No app handles the external player URL", { launchUrl })
+                return false
+            }
         }
 
         await Linking.openURL(launchUrl)
+        log.info("External player result", { opened: true, mode: "url" })
         return true
     }
-    catch {
+    catch (error) {
+        log.warning("Could not open the external player URL", { launchUrl, error: String(error) })
         return false
     }
 }

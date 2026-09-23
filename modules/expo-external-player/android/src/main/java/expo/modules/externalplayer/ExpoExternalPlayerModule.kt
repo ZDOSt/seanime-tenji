@@ -5,6 +5,7 @@ import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import androidx.core.content.FileProvider
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.modules.Module
@@ -12,24 +13,33 @@ import expo.modules.kotlin.modules.ModuleDefinition
 import java.io.File
 
 object ExpoExternalPlayerLauncher {
+    private const val TAG = "ExpoExternalPlayer"
+
     fun open(context: Context, url: String, packageName: String?): Boolean {
         if (url.isBlank()) return false
 
-        val uri = getPlayableUri(context, url) ?: return false
+        val uri = getPlayableUri(context, url) ?: run {
+            Log.w(TAG, "Could not build a playable URI for $url")
+            return false
+        }
         val candidates = buildCandidateIntents(uri, packageName?.takeIf { it.isNotBlank() })
 
         // player intent filters differ, so try the common video handoff shapes
-        for (candidate in candidates) {
+        candidates.forEach { (label, candidate) ->
             try {
                 context.startActivity(candidate)
+                Log.i(TAG, "Opened $packageName via $label for $uri")
                 return true
-            } catch (_: ActivityNotFoundException) {
+            } catch (error: ActivityNotFoundException) {
+                Log.w(TAG, "No activity for $packageName via $label: ${error.message}")
                 continue
-            } catch (_: SecurityException) {
+            } catch (error: SecurityException) {
+                Log.w(TAG, "SecurityException for $packageName via $label: ${error.message}")
                 continue
             }
         }
 
+        Log.w(TAG, "No installed player accepted the stream (package=$packageName)")
         return false
     }
 
@@ -53,20 +63,23 @@ object ExpoExternalPlayerLauncher {
         }
     }
 
-    private fun buildCandidateIntents(uri: Uri, packageName: String?): List<Intent> {
-        // mpv-android documents video/any for URLs without a recognizable file
-        // extension, which is how Seanime's streaming endpoints are exposed.
+    private fun buildCandidateIntents(uri: Uri, packageName: String?): List<Pair<String, Intent>> {
+        // mpv-android documents video/any for URLs without a recognizable file extension, which
+        // is how Seanime's streaming endpoints are exposed. The wider types are fallbacks for
+        // players (and mpv builds) whose filters only declare video/* or */*.
         if (packageName == "is.xyz.mpv") {
             return listOf(
-                baseIntent(packageName, uri).setDataAndType(uri, "video/any"),
-                baseIntent(packageName, uri).setData(uri),
+                "video/any" to baseIntent(packageName, uri).setDataAndType(uri, "video/any"),
+                "video/*" to baseIntent(packageName, uri).setDataAndType(uri, "video/*"),
+                "no type" to baseIntent(packageName, uri).setData(uri),
+                "*/*" to baseIntent(packageName, uri).setDataAndType(uri, "*/*"),
             )
         }
 
         return listOf(
-            baseIntent(packageName, uri).setDataAndType(uri, "video/*"),
-            baseIntent(packageName, uri).setData(uri),
-            baseIntent(packageName, uri).setDataAndType(uri, "*/*"),
+            "video/*" to baseIntent(packageName, uri).setDataAndType(uri, "video/*"),
+            "no type" to baseIntent(packageName, uri).setData(uri),
+            "*/*" to baseIntent(packageName, uri).setDataAndType(uri, "*/*"),
         )
     }
 

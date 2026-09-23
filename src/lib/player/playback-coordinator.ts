@@ -33,13 +33,17 @@ function sourceLogData(source: MobilePlaybackSource) {
  * If the user has configured an external player, open the URL in that app
  * and return true. Returns false when no external player is set.
  */
-async function tryOpenExternalPlayer(streamUrl: string, source: MobilePlaybackSource): Promise<boolean> {
+async function tryOpenExternalPlayer(
+    streamUrl: string,
+    source: MobilePlaybackSource,
+    serverIsLocal: boolean,
+): Promise<boolean> {
     const prefs = getPlayerPreferences()
     if (!prefs.externalPlayerTemplate) return false
 
     log.info("Opening external player", sourceLogData(source))
 
-    const opened = await openExternalPlayerURL(prefs.externalPlayerTemplate, streamUrl)
+    const opened = await openExternalPlayerURL(prefs.externalPlayerTemplate, streamUrl, { serverIsLocal })
     if (!opened) {
         log.warning("External player could not be opened; using the built-in player")
         toast.error("External player app not found")
@@ -70,6 +74,8 @@ export function usePlaybackCoordinator(entry: Anime_Entry | undefined) {
     const [, setLoadingMessage] = useAtom(playerLoadingMessageAtom)
     const [, setError] = useAtom(playerErrorAtom)
 
+    const serverIsLocal = () => (serverUrl ? isLocalServer(serverUrl) : false)
+
     const openBuiltInPlayer = (source: MobilePlaybackSource) => {
         log.info("Opening built-in player", sourceLogData(source))
         setError(null)
@@ -81,7 +87,7 @@ export function usePlaybackCoordinator(entry: Anime_Entry | undefined) {
 
     // applies the saved player preference and opens the built-in player when the handoff fails.
     const playFileSource = async (source: MobilePlaybackSource) => {
-        const opened = await tryOpenExternalPlayer(source.url, source)
+        const opened = await tryOpenExternalPlayer(source.url, source, serverIsLocal())
         if (opened) return
         openBuiltInPlayer(source)
     }
@@ -201,7 +207,7 @@ export function usePlaybackCoordinator(entry: Anime_Entry | undefined) {
             type: params.videoSource.type,
         })
 
-        tryOpenExternalPlayer(source.url, source).then(opened => {
+        tryOpenExternalPlayer(source.url, source, serverIsLocal()).then(opened => {
             if (opened) return
             startOnlinePlayback(source)
         })

@@ -19,6 +19,7 @@ import { useRouter } from "expo-router"
 import { atom, useAtom } from "jotai"
 import { useAtomValue } from "jotai/react"
 import React from "react"
+import { isLocalServer } from "@/lib/downloads"
 import { openExternalPlayerURL } from "./external-players"
 import { getPlayerPreferences } from "./player-preferences"
 import type { AnimeEntryLaunchView, MobilePlaybackSource, PlayerNextEpisodeAction } from "./types"
@@ -747,7 +748,7 @@ export function usePlayerEventListener() {
                     const prefs = getPlayerPreferences()
                     if (prefs.externalPlayerTemplate) {
                         log.info("Opening stream in external player")
-                        openExternalPlayerURL(prefs.externalPlayerTemplate, resolvedUrl).then(opened => {
+                        openExternalPlayerURL(prefs.externalPlayerTemplate, resolvedUrl, { serverIsLocal: isLocalServer(serverUrl) }).then(opened => {
                             if (opened) {
                                 log.info("Successfully opened external player URL")
                                 return
