@@ -5,7 +5,7 @@ import { usePreferredFocus, useTVFocus } from "@/components/tv/tv-focus"
 import { TV, tvSize } from "@/components/tv/tv-scale"
 import { useServerConnectionState } from "@/lib/offline"
 import { checkForOtaUpdateManually, getOtaVersionInfo } from "@/lib/ota/updates"
-import { getPlatformExternalPlayers } from "@/lib/player/external-players"
+import { getPlatformExternalPlayers, openExternalPlayerURL } from "@/lib/player/external-players"
 import { getPlayerPreferences } from "@/lib/player/player-preferences"
 import { toast } from "@/lib/utils/toast"
 import Ionicons from "@expo/vector-icons/Ionicons"
@@ -15,6 +15,9 @@ import * as React from "react"
 import { ActivityIndicator, Animated, Pressable, ScrollView, Text, View } from "react-native"
 
 type Confirm = "server" | "cache" | null
+
+/** Small public clip used by "Test External Player" — no auth, no headers, plain MP4. */
+const SAMPLE_CLIP_URL = "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4"
 
 function SectionCard({
     title,
@@ -189,6 +192,7 @@ export function TVSettingsScreen() {
     const [clearing, setClearing] = React.useState(false)
     const [checkingOta, setCheckingOta] = React.useState(false)
     const [playerPickerOpen, setPlayerPickerOpen] = React.useState(false)
+    const [testingPlayer, setTestingPlayer] = React.useState(false)
     const [externalPlayerLabel, setExternalPlayerLabel] = React.useState(() =>
         playerLabel(getPlayerPreferences().externalPlayerTemplate),
     )
@@ -227,6 +231,35 @@ export function TVSettingsScreen() {
         void checkForOtaUpdateManually()
             .finally(() => setCheckingOta(false))
     }, [checkingOta])
+
+    /**
+     * Hands a small public sample clip to the configured external player. Answering "does the
+     * handoff work at all?" without needing the owner's media, server or debrid service.
+     */
+    const testExternalPlayer = React.useCallback(() => {
+        if (testingPlayer) return
+
+        const template = getPlayerPreferences().externalPlayerTemplate
+        if (!template) {
+            toast.info("Choose an external player first")
+            return
+        }
+
+        setTestingPlayer(true)
+        void openExternalPlayerURL(template, SAMPLE_CLIP_URL)
+            .then(opened => {
+                if (opened) {
+                    toast.success("Test clip sent to the external player")
+                    return
+                }
+                toast.error("The external player could not be opened — check Profile → Logs")
+            })
+            .catch(() => toast.error("The external player could not be opened — check Profile → Logs"))
+            .finally(() => {
+                setTestingPlayer(false)
+                focusRow(playerRef)
+            })
+    }, [focusRow, testingPlayer])
 
     const handlePlayerPickerChange = React.useCallback((open: boolean) => {
         setPlayerPickerOpen(open)
@@ -366,6 +399,16 @@ export function TVSettingsScreen() {
                             detail={externalPlayerLabel}
                             icon="play-circle-outline"
                             onPress={() => setPlayerPickerOpen(true)}
+                        />
+                        <Divider />
+                        <SettingsRow
+                            label={testingPlayer ? "Sending Test Clip…" : "Test External Player"}
+                            detail="Hands a short sample video to the chosen app"
+                            icon="flash-outline"
+                            disabled={testingPlayer}
+                            onPress={testExternalPlayer}
+                            trailing={testingPlayer ? <ActivityIndicator size="small" color="white" /> : undefined}
+                            showChevron={false}
                         />
                     </SectionCard>
 

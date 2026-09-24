@@ -17,6 +17,8 @@ export type HandoffVerdict =
     | "blocked-loopback"
     /** No external player configured. */
     | "no-template"
+    /** The stream only plays with HTTP headers (referer etc.) that another app cannot receive. */
+    | "blocked-headers"
     /** Nothing usable to hand over. */
     | "empty-url"
 
@@ -74,6 +76,12 @@ export function decideExternalHandoff(params: {
     template: string | null | undefined
     /** True when this device also runs the Seanime server (offline/loopback playback). */
     serverIsLocal: boolean
+    /**
+     * Streams that only play with extra request headers (e.g. a referer for an HLS source).
+     * Android intents carry no headers, so such a URL opens a player that shows nothing —
+     * no video, no sound, no error — which is exactly the reported symptom.
+     */
+    headers?: Record<string, string> | null
 }): HandoffVerdict {
     const url = params.url?.trim() ?? ""
     const template = params.template?.trim() ?? ""
@@ -81,8 +89,15 @@ export function decideExternalHandoff(params: {
     if (!url) return "empty-url"
     if (!template) return "no-template"
     if (!params.serverIsLocal && isLoopbackUrl(url)) return "blocked-loopback"
+    if (hasRequiredHeaders(params.headers)) return "blocked-headers"
 
     return "handoff"
+}
+
+/** True when the stream needs headers a foreign app cannot receive. */
+export function hasRequiredHeaders(headers: Record<string, string> | null | undefined): boolean {
+    if (!headers) return false
+    return Object.keys(headers).length > 0
 }
 
 /** The external player has no credentials of its own, so these can never be played there. */

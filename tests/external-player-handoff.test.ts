@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import {
     classifyProbe,
+    hasRequiredHeaders,
     decideExternalHandoff,
     getExternalPlayerPackageName,
     getExternalPlayerURL,
@@ -84,6 +85,29 @@ test("handoff verdicts for the simple cases", () => {
     assert.equal(
         decideExternalHandoff({ url: "file:///data/user/0/app/files/ep.mkv", template: MPV, serverIsLocal: false }),
         "handoff",
+    )
+})
+
+test("a stream that needs request headers is never handed over", () => {
+    // Android intents carry no headers: the player opens, shows nothing, and reports no error
+    // (no video, no sound) — the exact symptom reported from the TV.
+    assert.equal(hasRequiredHeaders(undefined), false)
+    assert.equal(hasRequiredHeaders({}), false)
+    assert.equal(hasRequiredHeaders({ Referer: "https://example.com" }), true)
+
+    assert.equal(
+        decideExternalHandoff({
+            url: STREAM,
+            template: MPV,
+            serverIsLocal: false,
+            headers: { Referer: "https://example.com" },
+        }),
+        "blocked-headers",
+    )
+    assert.equal(
+        decideExternalHandoff({ url: STREAM, template: MPV, serverIsLocal: false, headers: {} }),
+        "handoff",
+        "an empty header map is not a blocker",
     )
 })
 

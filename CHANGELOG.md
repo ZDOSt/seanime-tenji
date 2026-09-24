@@ -8,6 +8,15 @@ All notable changes to this project will be documented in this file.
   player now re-attaches its video surface, forces a fresh frame, and reloads in place when mpv
   still reports no video (previously the audio kept playing over a black screen)
 
+## v0.3.7 (Android TV)
+
+- 🦺 External player: streams that only play with extra request headers (a referer for an HLS
+  source, for example) are no longer handed over — an Android intent carries no headers, so the
+  player opened, showed nothing and reported no error. Those play in the built-in player instead,
+  which sends the headers.
+- ⚡️ Settings → Player: "Test External Player" hands a short public sample clip to the chosen app,
+  which tells a broken handoff apart from an unplayable stream in one press.
+
 ## v0.3.6 (Android TV)
 
 - 🦺 External player (Android TV): a stream that can only fail there is no longer handed over —

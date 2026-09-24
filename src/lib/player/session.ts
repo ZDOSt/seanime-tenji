@@ -748,7 +748,10 @@ export function usePlayerEventListener() {
                     const prefs = getPlayerPreferences()
                     if (prefs.externalPlayerTemplate) {
                         log.info("Opening stream in external player")
-                        openExternalPlayerURL(prefs.externalPlayerTemplate, resolvedUrl, { serverIsLocal: isLocalServer(serverUrl) }).then(opened => {
+                        openExternalPlayerURL(prefs.externalPlayerTemplate, resolvedUrl, {
+                            serverIsLocal: isLocalServer(serverUrl),
+                            headers: source.headers,
+                        }).then(opened => {
                             if (opened) {
                                 log.info("Successfully opened external player URL")
                                 return

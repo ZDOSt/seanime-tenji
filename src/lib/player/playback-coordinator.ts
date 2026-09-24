@@ -43,7 +43,10 @@ async function tryOpenExternalPlayer(
 
     log.info("Opening external player", sourceLogData(source))
 
-    const opened = await openExternalPlayerURL(prefs.externalPlayerTemplate, streamUrl, { serverIsLocal })
+    const opened = await openExternalPlayerURL(prefs.externalPlayerTemplate, streamUrl, {
+        serverIsLocal,
+        headers: source.headers,
+    })
     if (!opened) {
         log.warning("External player could not be opened; using the built-in player")
         toast.error("External player app not found")

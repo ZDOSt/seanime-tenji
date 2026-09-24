@@ -174,18 +174,26 @@ async function probeStreamUrl(url: string): Promise<ReturnType<typeof classifyPr
 export async function openExternalPlayerURL(
     template: string,
     streamUrl: string,
-    options: { serverIsLocal?: boolean } = {},
+    options: { serverIsLocal?: boolean, headers?: Record<string, string> | null } = {},
 ): Promise<boolean> {
     const verdict = decideExternalHandoff({
         url: streamUrl,
         template,
         serverIsLocal: options.serverIsLocal ?? false,
+        headers: options.headers ?? null,
     })
 
     if (verdict !== "handoff") {
-        log.warning("External player handoff skipped", { verdict, url: maskStreamUrl(streamUrl) })
+        log.warning("External player handoff skipped", {
+            verdict,
+            url: maskStreamUrl(streamUrl),
+            headers: options.headers ? Object.keys(options.headers) : [],
+        })
         if (verdict === "blocked-loopback") {
             toast.error("This stream only exists on this device — using the built-in player")
+        }
+        if (verdict === "blocked-headers") {
+            toast.error("This stream needs extra request headers — playing it in the built-in player")
         }
         return false
     }
