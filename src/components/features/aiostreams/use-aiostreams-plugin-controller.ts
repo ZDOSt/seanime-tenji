@@ -2,6 +2,15 @@ import { sendWsMessage, subscribeWsMessage, type WebsocketMessage } from "@/api/
 import { API_ENDPOINTS } from "@/api/generated/endpoints"
 import type { Anime_Entry, Anime_Episode, ExtensionRepo_PluginEpisodeTabExtensionItem } from "@/api/generated/types"
 import { useServerQuery } from "@/api/client/requests"
+import { useGetExtensionUserConfig, useSaveExtensionUserConfig } from "@/api/hooks/extensions.hooks"
+import {
+    AIOSTREAMS_EXTENSION_ID,
+    AIOSTREAMS_SEARCH_ID_KEY,
+    type AioStreamsIdMode,
+    aioMergeSearchId,
+    aioModeFromSearchId,
+    aioOrderedModes,
+} from "@/lib/player/aiostreams-mode"
 import { getPlayerPreferences } from "@/lib/player/player-preferences"
 import { openExternalPlayerURL } from "@/lib/player/external-players"
 import { useStartOnlineStreamPlayback } from "@/lib/player"
@@ -37,7 +46,7 @@ type PluginState = {
     requestId?: string | null
 }
 
-const EXTENSION_ID = "aiostreams-plugin"
+const EXTENSION_ID = AIOSTREAMS_EXTENSION_ID
 
 /**
  * How long to wait for the plugin's first usable state before giving up.
@@ -45,6 +54,14 @@ const EXTENSION_ID = "aiostreams-plugin"
  * within this window the request is aborted so the picker never spins forever.
  */
 export const AIOSTREAMS_REQUEST_TIMEOUT_MS = 45_000
+
+/**
+ * Saving the ID mode reloads the plugin server-side, so the re-selection can arrive before it is
+ * listening again. These are the retry delays used when the plugin has not answered by then.
+ */
+const SWITCH_SETTLE_MS = 900
+const SWITCH_RETRY_MS = 2_500
+const SWITCH_RETRY_2_MS = 7_000
 
 function isObject(value: unknown): value is Record<string, unknown> {
     return !!value && typeof value === "object" && !Array.isArray(value)
@@ -92,6 +109,15 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
     const requestTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null)
     const startOnlinePlayback = useStartOnlineStreamPlayback()
 
+    // The plugin's own "Preferred Media ID" setting decides which ID it queries. The tabs below
+    // change it the same way the Extensions page does, then ask for the episode again.
+    const { data: userConfig } = useGetExtensionUserConfig(EXTENSION_ID)
+    const { mutate: saveUserConfig, isPending: savingUserConfig } = useSaveExtensionUserConfig({ muteSuccessToast: true })
+    const [switching, setSwitching] = React.useState(false)
+    const [pendingMode, setPendingMode] = React.useState<AioStreamsIdMode | null>(null)
+    const switchingRef = React.useRef(false)
+    const lastStateAtRef = React.useRef(0)
+
     const clearRequestTimeout = React.useCallback(() => {
         if (requestTimeout.current !== null) {
             clearTimeout(requestTimeout.current)
@@ -106,6 +132,13 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
                 const payload = event.payload
                 if (!isObject(payload) || payload.key !== "state" || !isObject(payload.value)) return
                 const state = payload.value as PluginState
+                lastStateAtRef.current = Date.now()
+                if (switchingRef.current) {
+                    // the plugin answered after the switch: it is no longer reloading
+                    switchingRef.current = false
+                    setSwitching(false)
+                    setPendingMode(null)
+                }
                 const requested = requestToken.current
                 if (!requested) return
                 // Official AIOStreams builds do not include request IDs. Accept
@@ -175,7 +208,57 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
         return true
     }, [entry.media, pluginAvailable, clearRequestTimeout])
 
+    const configuredMode = aioModeFromSearchId(
+        (userConfig?.savedUserConfig?.values as Record<string, string> | undefined)?.[AIOSTREAMS_SEARCH_ID_KEY],
+    )
+    const configValues = userConfig?.savedUserConfig?.values as Record<string, string> | undefined
+    const configVersion = userConfig?.userConfig?.version ?? 1
+    const activeMode = pendingMode ?? configuredMode
+    const modes = aioOrderedModes(configuredMode)
+
+    /**
+     * Switches the plugin to the other media ID and asks for the same episode again, so the results
+     * come back for the ID that resolves this anime correctly.
+     */
+    const switchMode = React.useCallback((mode: AioStreamsIdMode) => {
+        if (switchingRef.current || savingUserConfig) return
+        if (mode === configuredMode) return
+
+        const episode = pendingEpisode.current
+        const startedAt = Date.now()
+        const settled = () => lastStateAtRef.current > startedAt
+
+        switchingRef.current = true
+        setSwitching(true)
+        setPendingMode(mode)
+
+        saveUserConfig({
+            id: EXTENSION_ID,
+            version: configVersion,
+            values: aioMergeSearchId(configValues, mode),
+        }, {
+            onSettled: () => {
+                if (!episode) {
+                    switchingRef.current = false
+                    setSwitching(false)
+                    setPendingMode(null)
+                    return
+                }
+                const rerun = () => {
+                    if (settled()) return
+                    request(episode)
+                }
+                setTimeout(rerun, SWITCH_SETTLE_MS)
+                setTimeout(rerun, SWITCH_SETTLE_MS + SWITCH_RETRY_MS)
+                setTimeout(rerun, SWITCH_SETTLE_MS + SWITCH_RETRY_2_MS)
+            },
+        })
+    }, [configuredMode, configValues, configVersion, request, saveUserConfig, savingUserConfig])
+
     const close = React.useCallback(() => {
+        switchingRef.current = false
+        setSwitching(false)
+        setPendingMode(null)
         clearRequestTimeout()
         setOpen(false)
         setLoading(false)
@@ -219,5 +302,20 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
         }
     }, [close, entry.listData, entry.media, startOnlinePlayback])
 
-    return { available: pluginAvailable, open, loading, results, error, title, request, close, select }
+    return {
+        available: pluginAvailable,
+        open,
+        loading,
+        results,
+        error,
+        title,
+        request,
+        close,
+        select,
+        // Kitsu / IMDb tabs
+        mode: activeMode,
+        modes,
+        switching: switching || savingUserConfig,
+        switchMode,
+    }
 }

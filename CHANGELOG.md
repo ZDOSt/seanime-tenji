@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.3.8 (Android TV)
+
+- ✨ AIOStreams: Kitsu / IMDb tabs on the results sheet. Some anime resolve to the wrong season
+  through Kitsu (a sequel whose season shares its IMDb entry), which used to mean changing the
+  plugin's "Preferred Media ID" by hand in the Extensions page. The tabs now do that for you: they
+  switch the plugin's own setting and ask for the same episode again, so only one ID is queried at a
+  time and the plugin itself is never modified
+- 🦺 The tab row shows a brief "switching…" state while the plugin reloads (changing its setting
+  restarts it), and re-asks for the episode if the plugin was not listening yet
+
 ## v0.3.3 (phones/tablets)
 
 - 🦺 Player (Android): the picture returns after the screen was turned off and back on — the

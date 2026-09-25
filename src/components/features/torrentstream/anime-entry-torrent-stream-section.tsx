@@ -451,6 +451,10 @@ export function AnimeEntryTorrentStreamSection({ entry }: AnimeEntryTorrentStrea
                 results={aioStreams.results}
                 error={aioStreams.error}
                 onClose={aioStreams.close}
+                modes={aioStreams.modes}
+                mode={aioStreams.mode}
+                switching={aioStreams.switching}
+                onSelectMode={aioStreams.switchMode}
                 onSelect={(result) => aioStreams.select(result, (p2pResult, episode) => {
                     aioStreams.close()
                     torrentStream.startPluginResult(p2pResult, episode)

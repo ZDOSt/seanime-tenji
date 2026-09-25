@@ -63,9 +63,12 @@ const batch = (events: unknown[]) => ({
     type: "plugin", payload: { extensionId: EXTENSION_ID, type: "plugin:batch-events", payload: { events } },
 })
 
-function controllerHarness() {
+const modeHelpers = loadModule("../src/lib/player/aiostreams-mode.ts")
+
+function controllerHarness(options?: { searchId?: string }) {
     const states: any[] = []
     const sent: any[] = []
+    const savedConfigs: any[] = []
     let listener: ((message: unknown) => void) | undefined
     let connected = true
     const react = {
@@ -90,16 +93,42 @@ function controllerHarness() {
         "@/lib/player/external-players": { openExternalPlayerURL: () => assert.fail("Unexpected player launch") },
         "@/lib/player": { useStartOnlineStreamPlayback: () => () => assert.fail("Unexpected player launch") },
         "@/lib/utils/toast": { toast: { error: () => {} } },
+        "@/lib/player/aiostreams-mode": modeHelpers,
+        "@/api/hooks/extensions.hooks": {
+            useGetExtensionUserConfig: () => ({
+                data: {
+                    userConfig: { version: 3 },
+                    savedUserConfig: {
+                        values: {
+                            // an explicitly-passed undefined models a config that never set searchId
+                            searchId: options && "searchId" in options ? options.searchId : "kitsuId",
+                            playerMode: "builtin",
+                        },
+                    },
+                },
+            }),
+            // stands in for the save mutation: records the payload and settles immediately
+            useSaveExtensionUserConfig: () => ({
+                mutate: (variables: any, callbacks?: { onSettled?: () => void }) => {
+                    savedConfigs.push(variables)
+                    callbacks?.onSettled?.()
+                },
+                isPending: false,
+            }),
+        },
     })
     const controller = module.useAioStreamsPluginController({ mediaId: 123, media: { id: 123, title: { userPreferred: "Example season 4" } } })
     return {
-        controller, sent,
+        controller, sent, savedConfigs,
         disconnect: () => { connected = false },
         receive: (message: unknown) => listener?.(message),
         get open() { return states[0] },
         get loading() { return states[1] },
         get results() { return states[2] },
         get error() { return states[3] },
+        // the controller's own extra state: switching / pending mode (indices after the four above)
+        get switching() { return states[5] },
+        get pendingMode() { return states[6] },
     }
 }
 
@@ -189,4 +218,36 @@ test("a settled response cancels the timeout clock", (t) => {
     assert.equal(h.open, true)
     assert.equal(h.loading, false)
     assert.equal(h.results.length, 1)
+})
+
+test("the ID tabs switch the plugin's Preferred Media ID and keep the rest of its config", () => {
+    const h = controllerHarness({ searchId: "kitsuId" })
+    const episode = { episodeNumber: 11, aniDBEpisode: "11", baseAnime: { id: 123 } }
+    h.controller.request(episode)
+
+    // the configured mode comes first, IMDb second
+    assert.deepEqual([...h.controller.modes], ["kitsu", "imdb"])
+    assert.equal(h.controller.mode, "kitsu")
+
+    h.controller.switchMode("imdb")
+
+    assert.equal(h.savedConfigs.length, 1)
+    assert.equal(h.savedConfigs[0].id, "aiostreams-plugin")
+    assert.equal(h.savedConfigs[0].version, 3)
+    assert.equal(h.savedConfigs[0].values.searchId, "imdbId")
+    // the rest of the user config survives the switch
+    assert.equal(h.savedConfigs[0].values.playerMode, "builtin")
+    // and the panel shows the new mode as pending while the plugin reloads
+    assert.equal(h.switching, true)
+    assert.equal(h.pendingMode, "imdb")
+
+    // re-selecting the same mode is a no-op
+    h.controller.switchMode("imdb")
+    assert.equal(h.savedConfigs.length, 1)
+})
+
+test("an unset Preferred Media ID behaves like the plugin default (IMDb first)", () => {
+    const h = controllerHarness({ searchId: undefined as any })
+    assert.deepEqual([...h.controller.modes], ["imdb", "kitsu"])
+    assert.equal(h.controller.mode, "imdb")
 })

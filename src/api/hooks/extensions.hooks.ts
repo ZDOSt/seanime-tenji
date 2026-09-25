@@ -204,14 +204,15 @@ export function useGetExtensionUserConfig(id: string) {
     })
 }
 
-export function useSaveExtensionUserConfig() {
+export function useSaveExtensionUserConfig(options?: { muteSuccessToast?: boolean }) {
     return useServerMutation<boolean, SaveExtensionUserConfig_Variables>({
         endpoint: API_ENDPOINTS.EXTENSIONS.SaveExtensionUserConfig.endpoint,
         method: API_ENDPOINTS.EXTENSIONS.SaveExtensionUserConfig.methods[0],
         mutationKey: [API_ENDPOINTS.EXTENSIONS.SaveExtensionUserConfig.key],
         onSuccess: async () => {
             // DEVNOTE: No need to refetch, the websocket listener will do it
-            toast.success("Config saved successfully.")
+            // Callers that switch settings programmatically (e.g. the AIOStreams ID tabs) silence it.
+            if (!options?.muteSuccessToast) toast.success("Config saved successfully.")
         },
     })
 }

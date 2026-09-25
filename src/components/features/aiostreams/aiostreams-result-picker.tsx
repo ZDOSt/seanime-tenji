@@ -3,6 +3,7 @@ import { Ionicons } from "@expo/vector-icons"
 import React from "react"
 import { ActivityIndicator, Platform, Pressable, Text, View } from "react-native"
 import type { AioStreamsResult } from "./use-aiostreams-plugin-controller"
+import { type AioStreamsIdMode, aioModeLabel } from "@/lib/player/aiostreams-mode"
 
 type Props = {
     open: boolean
@@ -12,10 +13,16 @@ type Props = {
     error?: string | null
     onClose: () => void
     onSelect: (result: AioStreamsResult, index: number) => void
+    /** Kitsu / IMDb tabs — the plugin's own "Preferred Media ID" setting, switched for you. */
+    modes?: AioStreamsIdMode[]
+    mode?: AioStreamsIdMode
+    switching?: boolean
+    onSelectMode?: (mode: AioStreamsIdMode) => void
 }
 
-export function AioStreamsResultPicker({ open, loading, title, results, error, onClose, onSelect }: Props) {
+export function AioStreamsResultPicker({ open, loading, title, results, error, onClose, onSelect, modes, mode, switching, onSelectMode }: Props) {
     const [focusedIndex, setFocusedIndex] = React.useState<number | null>(null)
+    const [focusedMode, setFocusedMode] = React.useState<AioStreamsIdMode | null>(null)
 
     React.useEffect(() => {
         if (!open || loading) setFocusedIndex(null)
@@ -24,6 +31,35 @@ export function AioStreamsResultPicker({ open, loading, title, results, error, o
     return (
         <SeaBottomSheet open={open} onOpenChange={value => !value && onClose()} title={title} snapPoints={["78%", "94%"]}>
             <View className="gap-3">
+                {!!modes?.length && !!onSelectMode && (
+                    <View className="flex-row items-center gap-2">
+                        <Text className="text-white/35 text-[11px] font-semibold uppercase tracking-wider">IDs</Text>
+                        {modes.map(m => {
+                            const active = m === mode
+                            const focused = Platform.isTV && focusedMode === m
+                            return (
+                                <Pressable
+                                    key={m}
+                                    onPress={() => onSelectMode(m)}
+                                    focusable
+                                    accessibilityRole="button"
+                                    accessibilityState={{ selected: active, disabled: switching && !active }}
+                                    onFocus={Platform.isTV ? () => setFocusedMode(m) : undefined}
+                                    onBlur={Platform.isTV ? () => setFocusedMode(current => current === m ? null : current) : undefined}
+                                    className={`rounded-lg px-3 py-2 border ${active ? "bg-brand-500/90 border-brand-400" : "bg-white/[0.06] border-white/10"} ${switching && !active ? "opacity-50" : ""}`}
+                                    style={Platform.isTV ? { borderWidth: 3 } : undefined}
+                                >
+                                    <Text className={`text-xs font-semibold ${active ? "text-white" : "text-white/70"}`}>
+                                        {aioModeLabel(m)}{switching && active ? " · switching…" : ""}
+                                    </Text>
+                                </Pressable>
+                            )
+                        })}
+                        <Text className="text-white/30 text-[11px] flex-1" numberOfLines={1}>
+                            {switching ? "Switching the plugin's Preferred Media ID…" : "Preferred Media ID"}
+                        </Text>
+                    </View>
+                )}
                 {loading && (
                     <View className="items-center py-8 gap-3">
                         <ActivityIndicator color="#a4f4cf" />
