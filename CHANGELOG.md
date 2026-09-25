@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.3.7 (phones/tablets) and v0.3.11 (Android TV)
+
+- 🩹 AIOStreams tabs: the two tabs no longer swap places after a switch. The row was ordered by the
+  plugin's *current* setting, so a successful switch re-ordered it — the tab you were about to tap
+  moved, which looked like the sheet jumping back to the other ID by itself. The order is now fixed
+  to whatever was configured when the picker opened
+- ✅ Confirmed working in the server log: switching to IMDb resolves `tt16255458 · S2 · E11` and
+  returns 23 results
+
 ## v0.3.6 (phones/tablets) and v0.3.10 (Android TV)
 
 - 🩹 AIOStreams tabs, properly this time. The plugin identifies the anime from the episode it is

@@ -307,3 +307,14 @@ test("the request carries the base anime so the plugin never has to look it up",
     h.controller.request(withAnime)
     assert.equal(h.sent[1].payload.payload.episode.baseAnime.id, 999)
 })
+
+test("the tab order does not swap under the user's finger when the mode changes", () => {
+    const h = controllerHarness({ searchId: "kitsuId" })
+    const episode = { episodeNumber: 11, aniDBEpisode: "11", baseAnime: { id: 123 } }
+    h.controller.request(episode)
+    assert.deepEqual([...h.controller.modes], ["kitsu", "imdb"])
+
+    h.controller.switchMode("imdb")
+    // even though the plugin now reports imdbId, the tabs stay where they were
+    assert.deepEqual([...h.controller.modes], ["kitsu", "imdb"])
+})

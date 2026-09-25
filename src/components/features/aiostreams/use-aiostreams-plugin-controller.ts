@@ -254,7 +254,13 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
     const configValues = userConfig?.savedUserConfig?.values as Record<string, string> | undefined
     const configVersion = userConfig?.userConfig?.version ?? 1
     const activeMode = pendingMode ?? configuredMode
-    const modes = aioOrderedModes(configuredMode)
+
+    // The tab order is pinned to the mode the picker opened with. Ordering it by the *live* config
+    // made the two tabs swap places after every successful switch, so the next tap landed on the
+    // wrong one — which looked like the sheet jumping back to the other tab by itself.
+    const initialModeRef = React.useRef<AioStreamsIdMode | null>(null)
+    if (initialModeRef.current === null && userConfig) initialModeRef.current = configuredMode
+    const modes = aioOrderedModes(initialModeRef.current ?? configuredMode)
 
     // The tab keeps showing the mode being switched to until the plugin's own config confirms it,
     // so it cannot snap back to the old one while the plugin is restarting.
