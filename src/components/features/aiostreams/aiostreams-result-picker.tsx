@@ -67,11 +67,6 @@ export function AioStreamsResultPicker({ open, loading, title, results, error, o
                 {!!pluginToast && (
                     <Text className="text-amber-300 text-xs" numberOfLines={3}>Plugin says: {pluginToast}</Text>
                 )}
-                {__DEV__ || debug ? (
-                    <Text className="text-white/25 text-[10px]" numberOfLines={2}>
-                        {`diag states=${debug?.states ?? 0} loading=${debug?.loading ?? "-"} results=${debug?.results ?? "-"} sends=${debug?.sends ?? 0} dropped=${debug?.dropped ?? 0} note=${debug?.note ?? "-"}`}
-                    </Text>
-                ) : null}
                 {loading && (
                     <View className="items-center py-8 gap-3">
                         <ActivityIndicator color="#a4f4cf" />

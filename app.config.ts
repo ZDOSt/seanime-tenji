@@ -3,7 +3,7 @@ import type { ConfigContext, ExpoConfig } from "expo/config"
 export default ({ config }: ConfigContext): ExpoConfig => {
     const isTV = process.env.EXPO_TV === "1"
     const isTVDev = isTV && process.env.SEANIME_TV_DEV === "1"
-    const version = isTV ? "0.3.15" : "0.3.11"
+    const version = isTV ? "0.3.16" : "0.3.12"
     const androidPackage = process.env.EXPO_ANDROID_PACKAGE || (isTV ? "app.zdost.seanime.tenji.tv" : "app.zdost.seanime.tenji")
     const iosBundleIdentifier = process.env.EXPO_IOS_BUNDLE_ID || "app.zdost.seanime.tenji"
     const otaChannel = process.env.SEANIME_OTA_CHANNEL || (isTV ? "stable-tv" : "stable")
@@ -66,7 +66,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         },
         android: {
             jsEngine: "hermes",
-            versionCode: isTV ? 39 : 34,
+            versionCode: isTV ? 40 : 35,
             usesCleartextTraffic: true,
             adaptiveIcon: {
                 foregroundImage: "./src/assets/images/adaptive-icon.png",

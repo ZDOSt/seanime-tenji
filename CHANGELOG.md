@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.3.12 (phones/tablets) and v0.3.16 (Android TV)
+
+- ✅ AIOStreams Kitsu / IMDb tabs confirmed working: switching queries the plugin with the chosen ID and
+  the results change with it (verified on the TV: 14 results for Kitsu, 23 for IMDb, both ways)
+- 🧹 The temporary diagnostic line is gone; the sheet still shows any error the plugin itself raises
+- 🩹 Tab switching no longer relies on timestamps or on the app's lagging settings query — an answer is
+  taken as soon as the plugin finishes a search, and re-asks are counted, not timed
+
 ## v0.3.11 (phones/tablets) and v0.3.15 (Android TV)
 
 - 🩹 **AIOStreams tabs: the answer is no longer thrown away.** The on-device readout showed the plugin
