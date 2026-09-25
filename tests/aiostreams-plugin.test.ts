@@ -318,3 +318,16 @@ test("the tab order does not swap under the user's finger when the mode changes"
     // even though the plugin now reports imdbId, the tabs stay where they were
     assert.deepEqual([...h.controller.modes], ["kitsu", "imdb"])
 })
+
+test("a stuck switch never makes the tabs unresponsive", () => {
+    const h = controllerHarness({ searchId: "kitsuId" })
+    const episode = { episodeNumber: 11, aniDBEpisode: "11", baseAnime: { id: 123 } }
+    h.controller.request(episode)
+
+    h.controller.switchMode("imdb")
+    assert.equal(h.switching, true)
+    // the user changes their mind while the plugin is still restarting: that must be accepted
+    h.controller.switchMode("kitsu")
+    assert.equal(h.savedConfigs.length, 2, "the second tap saves its own mode")
+    assert.equal(h.savedConfigs[1].values.searchId, "kitsuId")
+})

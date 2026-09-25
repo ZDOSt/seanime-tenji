@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.3.8 (phones/tablets) and v0.3.12 (Android TV)
+
+- 🩹 AIOStreams tabs: a switch can no longer wedge the picker. Tapping the other ID while a switch is
+  still in flight now supersedes it instead of being ignored, and closing the sheet cancels it — so
+  the tabs stay responsive and "can't switch back" cannot happen
+- ✅ Verified against the live server with a real mobile client: after the plugin restarts,
+  switching to IMDb resolves `tt16255458 · S2 · E11` and delivers 23 results
+
 ## v0.3.7 (phones/tablets) and v0.3.11 (Android TV)
 
 - 🩹 AIOStreams tabs: the two tabs no longer swap places after a switch. The row was ordered by the

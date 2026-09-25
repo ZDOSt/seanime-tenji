@@ -122,8 +122,17 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
     const { data: userConfig } = useGetExtensionUserConfig(EXTENSION_ID)
     const { mutate: saveUserConfig, isPending: savingUserConfig } = useSaveExtensionUserConfig({ muteSuccessToast: true })
     const [switching, setSwitching] = React.useState(false)
-    const [pendingMode, setPendingMode] = React.useState<AioStreamsIdMode | null>(null)
+    const [pendingMode, setPendingModeState] = React.useState<AioStreamsIdMode | null>(null)
+    // mirror of pendingMode readable from callbacks (state would be a render behind)
+    const pendingModeRef = React.useRef<AioStreamsIdMode | null>(null)
+    const setPendingMode = React.useCallback((mode: AioStreamsIdMode | null) => {
+        pendingModeRef.current = mode
+        setPendingModeState(mode)
+    }, [])
     const switchingRef = React.useRef(false)
+    // Bumped by every switch (and by closing), so an older switch's retry loop stops as soon as a
+    // newer one starts. Without this, one stuck switch made the tabs unresponsive.
+    const switchTokenRef = React.useRef(0)
     // When the episode was last re-asked; only a *meaningful* answer newer than this ends the switch.
     const rerunAtRef = React.useRef(0)
     // A state counts as an answer only if the plugin finished a search with something to show
@@ -273,9 +282,12 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
      * come back for the ID that resolves this anime correctly.
      */
     const switchMode = React.useCallback((mode: AioStreamsIdMode) => {
-        if (switchingRef.current || savingUserConfig) return
-        if (mode === configuredMode) return
+        // tapping the tab that is already (or about to be) active is a no-op; tapping the other one
+        // always works, even while a previous switch is still in flight
+        if (mode === (pendingModeRef.current ?? configuredMode)) return
 
+        // any switch supersedes whatever was in flight
+        const token = ++switchTokenRef.current
         const episode = pendingEpisode.current
         // Retries keep going until the plugin actually answers the *new* mode; an empty state from
         // its restart must not count.
@@ -291,6 +303,7 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
             values: aioMergeSearchId(configValues, mode),
         }, {
             onSettled: () => {
+                if (token !== switchTokenRef.current) return
                 // the plugin has been restarted by the save: refresh its config so the tab shows
                 // the mode the plugin now reports, not the stale one
                 void queryClient.invalidateQueries({ queryKey: [API_ENDPOINTS.EXTENSIONS.GetExtensionUserConfig.key, EXTENSION_ID] })
@@ -303,6 +316,7 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
                 // usually land while it is still restarting, so a single re-ask was not enough.
                 let attempt = 0
                 const rerun = () => {
+                    if (token !== switchTokenRef.current) return
                     if (settled()) return
                     if (attempt >= SWITCH_MAX_ATTEMPTS) {
                         switchingRef.current = false
@@ -320,9 +334,10 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
                 setTimeout(rerun, SWITCH_SETTLE_MS)
             },
         })
-    }, [configuredMode, configValues, configVersion, request, saveUserConfig, savingUserConfig])
+    }, [configuredMode, configValues, configVersion, request, saveUserConfig, setPendingMode])
 
     const close = React.useCallback(() => {
+        switchTokenRef.current += 1
         switchingRef.current = false
         setSwitching(false)
         setPendingMode(null)
