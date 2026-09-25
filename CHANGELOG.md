@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.3.13 (phones/tablets) and v0.3.17 (Android TV)
+
+- 🦺 Android TV: the AIOStreams ID tabs are properly remote-navigable — a focused tab now gets the
+  brand border and a filled background, so you can always see where the D-pad is before pressing OK
+  (previously a focused but inactive tab only widened its border, which was indistinguishable from
+  being unfocused)
+
 ## v0.3.12 (phones/tablets) and v0.3.16 (Android TV)
 
 - ✅ AIOStreams Kitsu / IMDb tabs confirmed working: switching queries the plugin with the chosen ID and

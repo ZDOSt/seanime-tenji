@@ -50,7 +50,15 @@ export function AioStreamsResultPicker({ open, loading, title, results, error, o
                                     accessibilityState={{ selected: active, disabled: switching && !active }}
                                     onFocus={Platform.isTV ? () => setFocusedMode(m) : undefined}
                                     onBlur={Platform.isTV ? () => setFocusedMode(current => current === m ? null : current) : undefined}
-                                    className={`rounded-lg px-3 py-2 border ${active ? "bg-brand-500/90 border-brand-400" : "bg-white/[0.06] border-white/10"} ${switching && !active ? "opacity-50" : ""}`}
+                                    // On TV the focused tab must be unmistakable: a remote user has no
+                                    // pointer, so focus gets the brand border and a filled background.
+                                    className={`rounded-lg px-3 py-2 border ${
+                                        focused
+                                            ? "bg-brand-500/80 border-brand-400"
+                                            : active
+                                                ? "bg-brand-500/40 border-brand-400"
+                                                : "bg-white/[0.06] border-white/15"
+                                    } ${switching && !active ? "opacity-50" : ""}`}
                                     style={Platform.isTV ? { borderWidth: 3 } : undefined}
                                 >
                                     <Text className={`text-xs font-semibold ${active ? "text-white" : "text-white/70"}`}>
