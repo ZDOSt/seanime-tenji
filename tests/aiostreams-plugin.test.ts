@@ -65,7 +65,7 @@ const batch = (events: unknown[]) => ({
 
 const modeHelpers = loadModule("../src/lib/player/aiostreams-mode.ts")
 
-function controllerHarness(options?: { searchId?: string }) {
+function controllerHarness(options?: { searchId?: string, pluginListed?: boolean }) {
     const states: any[] = []
     const sent: any[] = []
     const savedConfigs: any[] = []
@@ -80,7 +80,12 @@ function controllerHarness(options?: { searchId?: string }) {
         useEffect: (effect: () => void) => effect(),
         useCallback: (callback: unknown) => callback,
     }
-    const api = { EXTENSIONS: { ListAnimeEntryEpisodeTabExtensions: { endpoint: "/tabs", methods: ["GET"], key: "tabs" } } }
+    const api = {
+        EXTENSIONS: {
+            ListAnimeEntryEpisodeTabExtensions: { endpoint: "/tabs", methods: ["GET"], key: "tabs" },
+            GetExtensionUserConfig: { endpoint: "/user-config/{id}", methods: ["GET"], key: "ext-user-config" },
+        },
+    }
     const module = loadModule("../src/components/features/aiostreams/use-aiostreams-plugin-controller.ts", {
         react,
         "@/api/components/websocket-hub": {
@@ -88,12 +93,19 @@ function controllerHarness(options?: { searchId?: string }) {
             sendWsMessage: (message: unknown) => { sent.push(message); return connected },
         },
         "@/api/generated/endpoints": { API_ENDPOINTS: api },
-        "@/api/client/requests": { useServerQuery: () => ({ data: [{ id: EXTENSION_ID }] }) },
+        "@/api/client/requests": {
+            // pluginListed: false models the moment the plugin is restarting after a config save
+            useServerQuery: () => ({ data: options?.pluginListed === false ? [] : [{ id: EXTENSION_ID }] }),
+        },
         "@/lib/player/player-preferences": { getPlayerPreferences: () => ({}) },
         "@/lib/player/external-players": { openExternalPlayerURL: () => assert.fail("Unexpected player launch") },
         "@/lib/player": { useStartOnlineStreamPlayback: () => () => assert.fail("Unexpected player launch") },
         "@/lib/utils/toast": { toast: { error: () => {} } },
         "@/lib/player/aiostreams-mode": modeHelpers,
+        "@tanstack/react-query": {
+            // the switch refreshes the plugin config once the save settles
+            useQueryClient: () => ({ invalidateQueries: () => Promise.resolve() }),
+        },
         "@/api/hooks/extensions.hooks": {
             useGetExtensionUserConfig: () => ({
                 data: {
@@ -250,4 +262,16 @@ test("an unset Preferred Media ID behaves like the plugin default (IMDb first)",
     const h = controllerHarness({ searchId: undefined as any })
     assert.deepEqual([...h.controller.modes], ["imdb", "kitsu"])
     assert.equal(h.controller.mode, "imdb")
+})
+
+test("a switch still re-asks for the episode while the plugin is restarting", () => {
+    // the plugin's episode tab disappears from the server list while it reloads: the re-ask must
+    // not be blocked by that, otherwise the sheet is left with an empty list
+    const h = controllerHarness({ searchId: "kitsuId", pluginListed: false })
+    const episode = { episodeNumber: 11, aniDBEpisode: "11", baseAnime: { id: 123 } }
+
+    assert.equal(h.controller.request(episode), false, "the normal path still waits for the plugin")
+    assert.equal(h.controller.request(episode, { skipAvailabilityCheck: true }), true)
+    assert.equal(h.sent.length, 1)
+    assert.equal(h.sent[0].payload.payload.episodeNumber, 11)
 })

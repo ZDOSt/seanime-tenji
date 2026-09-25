@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.3.5 (phones/tablets) and v0.3.9 (Android TV)
+
+- 🩹 AIOStreams tabs: switching to the other ID no longer fails. Saving the plugin's setting restarts
+  it, which briefly removed its episode tab and told the app AIOStreams was gone — the switch then
+  gave up and snapped back to the old tab. The re-ask now ignores that gap, the tab stays on the mode
+  you picked until the plugin confirms it, and a state from the previous search can no longer end the
+  switch early
+
 ## v0.3.4 (phones/tablets)
 
 - ✨ AIOStreams: Kitsu / IMDb tabs on the results sheet. Some anime resolve to the wrong season

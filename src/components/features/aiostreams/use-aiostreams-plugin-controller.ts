@@ -2,6 +2,7 @@ import { sendWsMessage, subscribeWsMessage, type WebsocketMessage } from "@/api/
 import { API_ENDPOINTS } from "@/api/generated/endpoints"
 import type { Anime_Entry, Anime_Episode, ExtensionRepo_PluginEpisodeTabExtensionItem } from "@/api/generated/types"
 import { useServerQuery } from "@/api/client/requests"
+import { useQueryClient } from "@tanstack/react-query"
 import { useGetExtensionUserConfig, useSaveExtensionUserConfig } from "@/api/hooks/extensions.hooks"
 import {
     AIOSTREAMS_EXTENSION_ID,
@@ -98,7 +99,12 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
         enabled: true,
         staleTime: 30_000,
     })
-    const pluginAvailable = !!tabs?.some(tab => tab.id === EXTENSION_ID)
+    // The plugin is restarted whenever its config is saved (that is how the ID mode is switched),
+    // so its episode tab disappears from this list for a moment. Once it has been seen, treat it as
+    // available for the rest of the session: otherwise the UI claims AIOStreams is gone mid-switch.
+    const seenAvailableRef = React.useRef(false)
+    if (tabs?.some(tab => tab.id === EXTENSION_ID)) seenAvailableRef.current = true
+    const pluginAvailable = !!tabs?.some(tab => tab.id === EXTENSION_ID) || seenAvailableRef.current
     const [open, setOpen] = React.useState(false)
     const [loading, setLoading] = React.useState(false)
     const [results, setResults] = React.useState<AioStreamsResult[]>([])
@@ -108,6 +114,7 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
     const requestToken = React.useRef<string | null>(null)
     const requestTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null)
     const startOnlinePlayback = useStartOnlineStreamPlayback()
+    const queryClient = useQueryClient()
 
     // The plugin's own "Preferred Media ID" setting decides which ID it queries. The tabs below
     // change it the same way the Extensions page does, then ask for the episode again.
@@ -117,6 +124,8 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
     const [pendingMode, setPendingMode] = React.useState<AioStreamsIdMode | null>(null)
     const switchingRef = React.useRef(false)
     const lastStateAtRef = React.useRef(0)
+    // when the episode was last re-asked; a plugin state older than this must not end the switch
+    const rerunAtRef = React.useRef(0)
 
     const clearRequestTimeout = React.useCallback(() => {
         if (requestTimeout.current !== null) {
@@ -133,11 +142,11 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
                 if (!isObject(payload) || payload.key !== "state" || !isObject(payload.value)) return
                 const state = payload.value as PluginState
                 lastStateAtRef.current = Date.now()
-                if (switchingRef.current) {
-                    // the plugin answered after the switch: it is no longer reloading
+                // Only a state that arrived after we re-asked for the episode proves the switch
+                // went through; anything older is the previous search finishing.
+                if (switchingRef.current && lastStateAtRef.current > rerunAtRef.current) {
                     switchingRef.current = false
                     setSwitching(false)
-                    setPendingMode(null)
                 }
                 const requested = requestToken.current
                 if (!requested) return
@@ -159,8 +168,11 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
         }
     }, [clearRequestTimeout])
 
-    const request = React.useCallback((episode: Anime_Episode): boolean => {
-        if (!pluginAvailable || !entry.media) return false
+    const request = React.useCallback((episode: Anime_Episode, options?: { skipAvailabilityCheck?: boolean }): boolean => {
+        if (!entry.media) return false
+        // The switch path re-asks while the plugin is reloading, so it must not be gated on the
+        // plugin still being listed as an episode-tab extension.
+        if (!pluginAvailable && !options?.skipAvailabilityCheck) return false
         const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
         requestToken.current = requestId
         pendingEpisode.current = episode
@@ -192,6 +204,8 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
             return false
         }
 
+        if (options?.skipAvailabilityCheck) rerunAtRef.current = Date.now()
+
         // If the plugin never answers, stop waiting and surface an error
         // instead of leaving the picker spinning forever.
         clearRequestTimeout()
@@ -216,6 +230,12 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
     const activeMode = pendingMode ?? configuredMode
     const modes = aioOrderedModes(configuredMode)
 
+    // The tab keeps showing the mode being switched to until the plugin's own config confirms it,
+    // so it cannot snap back to the old one while the plugin is restarting.
+    React.useEffect(() => {
+        if (pendingMode && configuredMode === pendingMode) setPendingMode(null)
+    }, [configuredMode, pendingMode])
+
     /**
      * Switches the plugin to the other media ID and asks for the same episode again, so the results
      * come back for the ID that resolves this anime correctly.
@@ -238,15 +258,17 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
             values: aioMergeSearchId(configValues, mode),
         }, {
             onSettled: () => {
+                // the plugin has been restarted by the save: refresh its config so the tab shows
+                // the mode the plugin now reports, not the stale one
+                void queryClient.invalidateQueries({ queryKey: [API_ENDPOINTS.EXTENSIONS.GetExtensionUserConfig.key, EXTENSION_ID] })
                 if (!episode) {
                     switchingRef.current = false
                     setSwitching(false)
-                    setPendingMode(null)
                     return
                 }
                 const rerun = () => {
                     if (settled()) return
-                    request(episode)
+                    request(episode, { skipAvailabilityCheck: true })
                 }
                 setTimeout(rerun, SWITCH_SETTLE_MS)
                 setTimeout(rerun, SWITCH_SETTLE_MS + SWITCH_RETRY_MS)
