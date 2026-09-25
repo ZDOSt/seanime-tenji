@@ -275,3 +275,35 @@ test("a switch still re-asks for the episode while the plugin is restarting", ()
     assert.equal(h.sent.length, 1)
     assert.equal(h.sent[0].payload.payload.episodeNumber, 11)
 })
+
+test("an empty state pushed while the plugin restarts does not look like an answer", () => {
+    const h = controllerHarness({ searchId: "kitsuId" })
+    const episode = { episodeNumber: 11, aniDBEpisode: "11", baseAnime: { id: 123 } }
+    h.controller.request(episode)
+    h.controller.switchMode("imdb")
+    assert.equal(h.switching, true)
+
+    // the plugin re-syncs its panel after the restart with an empty list: not an answer
+    h.receive({ type: "plugin", payload: stateEvent({ loading: false, results: [] }) })
+    assert.equal(h.switching, true, "still switching: nothing was found yet")
+
+    // a real answer (results, or an error) ends it
+    h.receive({ type: "plugin", payload: stateEvent({ loading: false, results: [{ name: "S2E11", url: "https://example.com/x", type: "http" }] }) })
+    assert.equal(h.switching, false)
+})
+
+test("the request carries the base anime so the plugin never has to look it up", () => {
+    // the plugin falls back to its own (cold, right after a restart) caches when the episode has no
+    // baseAnime, and gives up silently — which is what left the sheet empty after switching IDs
+    const h = controllerHarness()
+    const episode = { episodeNumber: 11, aniDBEpisode: "11" }
+    h.controller.request(episode)
+    const sent = h.sent[0].payload.payload
+    assert.deepEqual(sent.episode.baseAnime, { id: 123, title: { userPreferred: "Example season 4" } })
+    assert.equal(sent.episodeNumber, 11)
+
+    // an episode that already knows its anime is left untouched
+    const withAnime = { episodeNumber: 12, aniDBEpisode: "12", baseAnime: { id: 999 } }
+    h.controller.request(withAnime)
+    assert.equal(h.sent[1].payload.payload.episode.baseAnime.id, 999)
+})

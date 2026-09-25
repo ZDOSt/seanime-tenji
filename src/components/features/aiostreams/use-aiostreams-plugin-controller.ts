@@ -61,8 +61,9 @@ export const AIOSTREAMS_REQUEST_TIMEOUT_MS = 45_000
  * listening again. These are the retry delays used when the plugin has not answered by then.
  */
 const SWITCH_SETTLE_MS = 900
-const SWITCH_RETRY_MS = 2_500
-const SWITCH_RETRY_2_MS = 7_000
+const SWITCH_RETRY_MS = 1_800
+/** ~11 s of patience: the plugin is restarted by the setting change, which takes a moment. */
+const SWITCH_MAX_ATTEMPTS = 6
 
 function isObject(value: unknown): value is Record<string, unknown> {
     return !!value && typeof value === "object" && !Array.isArray(value)
@@ -123,9 +124,12 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
     const [switching, setSwitching] = React.useState(false)
     const [pendingMode, setPendingMode] = React.useState<AioStreamsIdMode | null>(null)
     const switchingRef = React.useRef(false)
-    const lastStateAtRef = React.useRef(0)
-    // when the episode was last re-asked; a plugin state older than this must not end the switch
+    // When the episode was last re-asked; only a *meaningful* answer newer than this ends the switch.
     const rerunAtRef = React.useRef(0)
+    // A state counts as an answer only if the plugin finished a search with something to show
+    // (results or an error). Right after a restart the plugin re-syncs its webview state with an
+    // empty list — treating that as an answer cancelled the retries and left the sheet empty.
+    const answeredAtRef = React.useRef(0)
 
     const clearRequestTimeout = React.useCallback(() => {
         if (requestTimeout.current !== null) {
@@ -141,12 +145,14 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
                 const payload = event.payload
                 if (!isObject(payload) || payload.key !== "state" || !isObject(payload.value)) return
                 const state = payload.value as PluginState
-                lastStateAtRef.current = Date.now()
-                // Only a state that arrived after we re-asked for the episode proves the switch
-                // went through; anything older is the previous search finishing.
-                if (switchingRef.current && lastStateAtRef.current > rerunAtRef.current) {
-                    switchingRef.current = false
-                    setSwitching(false)
+                const finished = typeof state.loading === "boolean" && !state.loading
+                const hasAnswer = finished && ((state.results?.length ?? 0) > 0 || !!state.error)
+                if (hasAnswer) {
+                    answeredAtRef.current = Date.now()
+                    if (switchingRef.current && answeredAtRef.current > rerunAtRef.current) {
+                        switchingRef.current = false
+                        setSwitching(false)
+                    }
                 }
                 const requested = requestToken.current
                 if (!requested) return
@@ -154,6 +160,9 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
                 // those states for compatibility, but enforce matching IDs when
                 // a custom build provides one.
                 if (state.requestId && state.requestId !== requested) return
+                // While switching, ignore anything that is not an answer: the plugin restarts and
+                // re-syncs an empty state, which used to blank the sheet mid-switch.
+                if (switchingRef.current && !hasAnswer) return
                 // The request settled: stop the timeout clock.
                 if (typeof state.loading === "boolean" && !state.loading) clearRequestTimeout()
                 if (Array.isArray(state.results)) setResults(state.results)
@@ -167,6 +176,23 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
             clearRequestTimeout()
         }
     }, [clearRequestTimeout])
+
+    /**
+     * The plugin resolves the anime for a selected episode like this:
+     *
+     *   if (episode?.baseAnime) anime = episode.baseAnime
+     *   else if (mediaId) anime = (await ctx.anime.getAnimeEntry(mediaId))?.media ?? $anilist.getAnime(mediaId)
+     *   if (!anime) { toast.error("AIOStreams: Could not identify anime"); return }
+     *
+     * Right after it is restarted (which is what switching the ID does) those caches are cold, so the
+     * fallback can come back empty and the plugin silently never searches. Sending the base anime we
+     * already have takes the first branch and removes that dependency.
+     */
+    const withBaseAnime = React.useCallback((episode: Anime_Episode): Anime_Episode => {
+        const media = entry.media
+        if (!media || (episode as any)?.baseAnime) return episode
+        return { ...episode, baseAnime: media } as Anime_Episode
+    }, [entry.media])
 
     const request = React.useCallback((episode: Anime_Episode, options?: { skipAvailabilityCheck?: boolean }): boolean => {
         if (!entry.media) return false
@@ -191,7 +217,7 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
                     mediaId: entry.media.id,
                     episodeNumber: episode.episodeNumber,
                     aniDbEpisode: episode.aniDBEpisode,
-                    episode,
+                    episode: withBaseAnime(episode),
                     requestId,
                 },
             },
@@ -220,7 +246,7 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
             toast.error(message)
         }, AIOSTREAMS_REQUEST_TIMEOUT_MS)
         return true
-    }, [entry.media, pluginAvailable, clearRequestTimeout])
+    }, [entry.media, pluginAvailable, clearRequestTimeout, withBaseAnime])
 
     const configuredMode = aioModeFromSearchId(
         (userConfig?.savedUserConfig?.values as Record<string, string> | undefined)?.[AIOSTREAMS_SEARCH_ID_KEY],
@@ -245,8 +271,9 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
         if (mode === configuredMode) return
 
         const episode = pendingEpisode.current
-        const startedAt = Date.now()
-        const settled = () => lastStateAtRef.current > startedAt
+        // Retries keep going until the plugin actually answers the *new* mode; an empty state from
+        // its restart must not count.
+        const settled = () => answeredAtRef.current > rerunAtRef.current
 
         switchingRef.current = true
         setSwitching(true)
@@ -266,13 +293,25 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
                     setSwitching(false)
                     return
                 }
+                // Keep re-asking until the plugin answers for the new mode. The first attempts
+                // usually land while it is still restarting, so a single re-ask was not enough.
+                let attempt = 0
                 const rerun = () => {
                     if (settled()) return
+                    if (attempt >= SWITCH_MAX_ATTEMPTS) {
+                        switchingRef.current = false
+                        setSwitching(false)
+                        const message = "The AIOStreams plugin did not answer after switching the ID. Please try again."
+                        setLoading(false)
+                        setError(message)
+                        toast.error(message)
+                        return
+                    }
+                    attempt += 1
                     request(episode, { skipAvailabilityCheck: true })
+                    setTimeout(rerun, SWITCH_RETRY_MS)
                 }
                 setTimeout(rerun, SWITCH_SETTLE_MS)
-                setTimeout(rerun, SWITCH_SETTLE_MS + SWITCH_RETRY_MS)
-                setTimeout(rerun, SWITCH_SETTLE_MS + SWITCH_RETRY_2_MS)
             },
         })
     }, [configuredMode, configValues, configVersion, request, saveUserConfig, savingUserConfig])

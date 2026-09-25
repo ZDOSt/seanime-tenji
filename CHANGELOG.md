@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.3.6 (phones/tablets) and v0.3.10 (Android TV)
+
+- 🩹 AIOStreams tabs, properly this time. The plugin identifies the anime from the episode it is
+  given: if that episode does not carry its base anime, the plugin looks it up in its own caches —
+  which are empty right after the restart that switching the ID causes. It then gives up silently,
+  which is why both tabs ended up with no links. Tenji now always sends the anime with the request,
+  so the plugin never depends on those caches
+- 🩹 While switching, the sheet stays on "switching…" instead of blanking on the plugin's empty
+  restart state, and it re-asks until the plugin answers (about 11 seconds of patience) instead of
+  giving up after one attempt
+
 ## v0.3.5 (phones/tablets) and v0.3.9 (Android TV)
 
 - 🩹 AIOStreams tabs: switching to the other ID no longer fails. Saving the plugin's setting restarts
