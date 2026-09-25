@@ -47,7 +47,9 @@ export function AioStreamsResultPicker({ open, loading, title, results, error, o
                                     onPress={() => onSelectMode(m)}
                                     focusable
                                     accessibilityRole="button"
-                                    accessibilityState={{ selected: active, disabled: switching && !active }}
+                                    // Never `disabled`: on TV a disabled Pressable cannot take focus, so the
+                                    // user would lose the D-pad position mid-switch and be unable to switch back
+                                    accessibilityState={{ selected: active }}
                                     onFocus={Platform.isTV ? () => setFocusedMode(m) : undefined}
                                     onBlur={Platform.isTV ? () => setFocusedMode(current => current === m ? null : current) : undefined}
                                     // On TV the focused tab must be unmistakable: a remote user has no
