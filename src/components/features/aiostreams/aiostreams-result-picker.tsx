@@ -18,9 +18,13 @@ type Props = {
     mode?: AioStreamsIdMode
     switching?: boolean
     onSelectMode?: (mode: AioStreamsIdMode) => void
+    /** On-device readout of what the plugin actually sent back (see the controller). */
+    debug?: { states: number, loading: boolean | null, results: number, sends: number, dropped: number, note: string }
+    /** A message the plugin itself raised (e.g. it could not identify the anime). */
+    pluginToast?: string | null
 }
 
-export function AioStreamsResultPicker({ open, loading, title, results, error, onClose, onSelect, modes, mode, switching, onSelectMode }: Props) {
+export function AioStreamsResultPicker({ open, loading, title, results, error, onClose, onSelect, modes, mode, switching, onSelectMode, debug, pluginToast }: Props) {
     const [focusedIndex, setFocusedIndex] = React.useState<number | null>(null)
     const [focusedMode, setFocusedMode] = React.useState<AioStreamsIdMode | null>(null)
 
@@ -60,6 +64,14 @@ export function AioStreamsResultPicker({ open, loading, title, results, error, o
                         </Text>
                     </View>
                 )}
+                {!!pluginToast && (
+                    <Text className="text-amber-300 text-xs" numberOfLines={3}>Plugin says: {pluginToast}</Text>
+                )}
+                {__DEV__ || debug ? (
+                    <Text className="text-white/25 text-[10px]" numberOfLines={2}>
+                        {`diag states=${debug?.states ?? 0} loading=${debug?.loading ?? "-"} results=${debug?.results ?? "-"} sends=${debug?.sends ?? 0} dropped=${debug?.dropped ?? 0} note=${debug?.note ?? "-"}`}
+                    </Text>
+                ) : null}
                 {loading && (
                     <View className="items-center py-8 gap-3">
                         <ActivityIndicator color="#a4f4cf" />

@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.3.9 (phones/tablets) and v0.3.13 (Android TV)
+
+- 🔍 AIOStreams tabs: the results sheet now shows a small diagnostic line (messages received, the last
+  message's state, how many requests were sent, how many were dropped, and what the picker decided) and
+  any message the plugin itself raises — so a silent "no links" can be diagnosed from a screenshot
+- 🩹 Answers that belong to the *previous* ID are refused: while the plugin still reports the old mode,
+  a finished search is the old one finishing, and showing it is what made the list look unchanged
+
 ## v0.3.8 (phones/tablets) and v0.3.12 (Android TV)
 
 - 🩹 AIOStreams tabs: a switch can no longer wedge the picker. Tapping the other ID while a switch is

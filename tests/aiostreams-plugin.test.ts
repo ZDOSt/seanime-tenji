@@ -65,8 +65,10 @@ const batch = (events: unknown[]) => ({
 
 const modeHelpers = loadModule("../src/lib/player/aiostreams-mode.ts")
 
-function controllerHarness(options?: { searchId?: string, pluginListed?: boolean }) {
+function controllerHarness(options?: { searchId?: string, pluginListed?: boolean, refreshesConfig?: boolean }) {
     const states: any[] = []
+    // simulates the plugin's saved settings, refreshed after a save unless the test opts out
+    const saved = { searchId: options && "searchId" in options ? options.searchId : "kitsuId" }
     const sent: any[] = []
     const savedConfigs: any[] = []
     let listener: ((message: unknown) => void) | undefined
@@ -110,19 +112,14 @@ function controllerHarness(options?: { searchId?: string, pluginListed?: boolean
             useGetExtensionUserConfig: () => ({
                 data: {
                     userConfig: { version: 3 },
-                    savedUserConfig: {
-                        values: {
-                            // an explicitly-passed undefined models a config that never set searchId
-                            searchId: options && "searchId" in options ? options.searchId : "kitsuId",
-                            playerMode: "builtin",
-                        },
-                    },
+                    savedUserConfig: { values: { searchId: saved.searchId, playerMode: "builtin" } },
                 },
             }),
             // stands in for the save mutation: records the payload and settles immediately
             useSaveExtensionUserConfig: () => ({
                 mutate: (variables: any, callbacks?: { onSettled?: () => void }) => {
                     savedConfigs.push(variables)
+                    if (options?.refreshesConfig !== false) saved.searchId = variables.values.searchId
                     callbacks?.onSettled?.()
                 },
                 isPending: false,
@@ -277,19 +274,33 @@ test("a switch still re-asks for the episode while the plugin is restarting", ()
 })
 
 test("an empty state pushed while the plugin restarts does not look like an answer", () => {
+    // The harness cannot re-run the hook, so the controller never sees the refreshed config here —
+    // which is exactly the "plugin has not switched yet" case. Both a restart's empty state and a
+    // finished search from the old ID must be refused rather than shown as the new answer.
     const h = controllerHarness({ searchId: "kitsuId" })
     const episode = { episodeNumber: 11, aniDBEpisode: "11", baseAnime: { id: 123 } }
     h.controller.request(episode)
     h.controller.switchMode("imdb")
     assert.equal(h.switching, true)
 
-    // the plugin re-syncs its panel after the restart with an empty list: not an answer
     h.receive({ type: "plugin", payload: stateEvent({ loading: false, results: [] }) })
-    assert.equal(h.switching, true, "still switching: nothing was found yet")
+    assert.equal(h.switching, true, "an empty restart state is not an answer")
 
-    // a real answer (results, or an error) ends it
-    h.receive({ type: "plugin", payload: stateEvent({ loading: false, results: [{ name: "S2E11", url: "https://example.com/x", type: "http" }] }) })
-    assert.equal(h.switching, false)
+    h.receive({ type: "plugin", payload: stateEvent({ loading: false, results: [{ name: "old", url: "u", type: "http" }] }) })
+    assert.equal(h.switching, true, "a search from the previous ID is not the new answer either")
+    assert.equal(h.results.length, 0, "and its results are not shown")
+})
+
+test("a switch still re-asks for the episode while the plugin is restarting", () => {
+    // the plugin's episode tab disappears from the server list while it reloads: the re-ask must
+    // not be blocked by that, otherwise the sheet is left with an empty list
+    const h = controllerHarness({ searchId: "kitsuId", pluginListed: false })
+    const episode = { episodeNumber: 11, aniDBEpisode: "11", baseAnime: { id: 123 } }
+
+    assert.equal(h.controller.request(episode), false, "the normal path still waits for the plugin")
+    assert.equal(h.controller.request(episode, { skipAvailabilityCheck: true }), true)
+    assert.equal(h.sent.length, 1)
+    assert.equal(h.sent[0].payload.payload.episodeNumber, 11)
 })
 
 test("the request carries the base anime so the plugin never has to look it up", () => {
@@ -330,4 +341,17 @@ test("a stuck switch never makes the tabs unresponsive", () => {
     h.controller.switchMode("kitsu")
     assert.equal(h.savedConfigs.length, 2, "the second tap saves its own mode")
     assert.equal(h.savedConfigs[1].values.searchId, "kitsuId")
+})
+
+test("an answer from the previous ID is ignored while the plugin has not switched yet", () => {
+    const h = controllerHarness({ searchId: "kitsuId", refreshesConfig: false })
+    const episode = { episodeNumber: 11, aniDBEpisode: "11", baseAnime: { id: 123 } }
+    h.controller.request(episode)
+    h.controller.switchMode("imdb")
+
+    // the plugin's saved config never refreshes here, so its answers still belong to kitsuId and must
+    // not be shown as the IMDb answer
+    h.receive({ type: "plugin", payload: stateEvent({ loading: false, results: [{ name: "old", url: "u", type: "http" }] }) })
+    assert.equal(h.switching, true)
+    assert.equal(h.results.length, 0, "the old mode's results are not shown")
 })

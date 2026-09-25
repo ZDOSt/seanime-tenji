@@ -130,6 +130,17 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
         setPendingModeState(mode)
     }, [])
     const switchingRef = React.useRef(false)
+    // Diagnostics surfaced in the picker: this is the only way to see, on the device, whether the
+    // plugin's answers arrive and which request they belong to.
+    const [debug, setDebug] = React.useState({ states: 0, loading: null as boolean | null, results: -1, sends: 0, dropped: 0, note: "-" })
+    const debugRef = React.useRef(debug)
+    const trace = React.useCallback((patch: Partial<typeof debug>) => {
+        debugRef.current = { ...debugRef.current, ...patch }
+        setDebug(debugRef.current)
+    }, [])
+    const [pluginToast, setPluginToast] = React.useState<string | null>(null)
+    // mirror of the plugin's confirmed mode, readable from the websocket listener
+    const configuredModeRef = React.useRef<AioStreamsIdMode | null>(null)
     // Bumped by every switch (and by closing), so an older switch's retry loop stops as soon as a
     // newer one starts. Without this, one stuck switch made the tabs unresponsive.
     const switchTokenRef = React.useRef(0)
@@ -150,12 +161,28 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
     React.useEffect(() => {
         const handleMessage = (message: WebsocketMessage) => {
             visitPluginServerEvents(message, event => {
-                if (event.extensionId !== EXTENSION_ID || event.type !== "webview:sync-state") return
+                if (event.extensionId !== EXTENSION_ID) return
+
+                // The plugin reports failures as toasts; showing them is how a silent "no results"
+                // becomes visible on the device.
+                if (event.type === "error-toast" || event.type === "toast") {
+                    const p = event.payload as any
+                    const text = typeof p === "string" ? p : (p?.message ?? p?.text ?? "")
+                    if (text) setPluginToast(String(text))
+                    return
+                }
+                if (event.type !== "webview:sync-state") return
                 const payload = event.payload
                 if (!isObject(payload) || payload.key !== "state" || !isObject(payload.value)) return
                 const state = payload.value as PluginState
+                trace({ states: debugRef.current.states + 1, loading: typeof state.loading === "boolean" ? state.loading : null, results: Array.isArray(state.results) ? state.results.length : -1 })
                 const finished = typeof state.loading === "boolean" && !state.loading
-                const hasAnswer = finished && ((state.results?.length ?? 0) > 0 || !!state.error)
+                // An answer that arrives while the plugin is still configured for the *other* ID is
+                // the previous search finishing — showing it is what made the list look unchanged.
+                const pluginSwitched = !!pendingModeRef.current && configuredModeRef.current === pendingModeRef.current
+                const staleMode = switchingRef.current && !pluginSwitched
+                const hasAnswer = finished && !staleMode && ((state.results?.length ?? 0) > 0 || !!state.error)
+                if (staleMode && finished) trace({ note: `ignored: plugin still on ${configuredModeRef.current ?? "?"}` })
                 if (hasAnswer) {
                     answeredAtRef.current = Date.now()
                     if (switchingRef.current && answeredAtRef.current > rerunAtRef.current) {
@@ -164,14 +191,23 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
                     }
                 }
                 const requested = requestToken.current
-                if (!requested) return
+                if (!requested) {
+                    trace({ dropped: debugRef.current.dropped + 1, note: "dropped: no active request" })
+                    return
+                }
                 // Official AIOStreams builds do not include request IDs. Accept
                 // those states for compatibility, but enforce matching IDs when
                 // a custom build provides one.
-                if (state.requestId && state.requestId !== requested) return
+                if (state.requestId && state.requestId !== requested) {
+                    trace({ dropped: debugRef.current.dropped + 1, note: "dropped: requestId mismatch" })
+                    return
+                }
                 // While switching, ignore anything that is not an answer: the plugin restarts and
                 // re-syncs an empty state, which used to blank the sheet mid-switch.
-                if (switchingRef.current && !hasAnswer) return
+                if (switchingRef.current && !hasAnswer) {
+                    trace({ note: "ignored (switching, no answer yet)" })
+                    return
+                }
                 // The request settled: stop the timeout clock.
                 if (typeof state.loading === "boolean" && !state.loading) clearRequestTimeout()
                 if (Array.isArray(state.results)) setResults(state.results)
@@ -215,6 +251,8 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
         setResults([])
         setError(null)
         setLoading(true)
+        setPluginToast(null)
+        trace({ sends: debugRef.current.sends + 1, note: "sent" })
         setOpen(true)
 
         const sent = sendWsMessage({
@@ -263,6 +301,7 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
     const configValues = userConfig?.savedUserConfig?.values as Record<string, string> | undefined
     const configVersion = userConfig?.userConfig?.version ?? 1
     const activeMode = pendingMode ?? configuredMode
+    configuredModeRef.current = configuredMode
 
     // The tab order is pinned to the mode the picker opened with. Ordering it by the *live* config
     // made the two tabs swap places after every successful switch, so the next tap landed on the
@@ -385,6 +424,8 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
     }, [close, entry.listData, entry.media, startOnlinePlayback])
 
     return {
+        debug,
+        pluginToast,
         available: pluginAvailable,
         open,
         loading,
