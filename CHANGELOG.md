@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.3.14 (phones/tablets) and v0.3.18 (Android TV)
+
+- ✨ AIOStreams results now show the **full metadata**, matching the desktop panel: provider, complete
+  filename, file size (and the plugin's cached/debrid lines) instead of being cut off after two lines.
+  The size is also added to the summary row, so a release can be judged on the TV without guessing
+- 🔍 The cards stay readable: the release name is limited to three lines, the metadata below it is shown
+  in full
+
 ## v0.3.13 (phones/tablets) and v0.3.17 (Android TV)
 
 - 🦺 Android TV: the AIOStreams ID tabs are properly remote-navigable — a focused tab now gets the

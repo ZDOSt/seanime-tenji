@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
+import { formatBytes } from "../src/lib/player/format-bytes.ts"
 import {
     AIOSTREAMS_SEARCH_ID_KEY,
     aioMergeSearchId,
@@ -61,5 +62,23 @@ describe("AIOStreams ID mode helpers", () => {
         assert.equal(aioSwitchLabel("kitsu", false, true), "Kitsu")
         assert.equal(aioSwitchLabel("kitsu", true, true), "Kitsu · switching…")
         assert.equal(aioSwitchLabel("imdb", true, false), "IMDb")
+    })
+})
+
+describe("file size on result cards", () => {
+    it("formats sizes the way the desktop panel does", () => {
+        assert.equal(formatBytes(1_556_778_000), "1.45 GB")
+        assert.equal(formatBytes(242 * 1024 * 1024), "242 MB")
+        assert.equal(formatBytes(1024), "1.00 KB")
+        assert.equal(formatBytes(900), "900 B")
+        assert.equal(formatBytes(2 * 1024 ** 4), "2.00 TB")
+    })
+
+    it("stays silent when there is no usable size", () => {
+        assert.equal(formatBytes(null), null)
+        assert.equal(formatBytes(undefined), null)
+        assert.equal(formatBytes(0), null)
+        assert.equal(formatBytes(-5), null)
+        assert.equal(formatBytes(Number.NaN), null)
     })
 })

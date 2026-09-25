@@ -4,6 +4,7 @@ import React from "react"
 import { ActivityIndicator, Platform, Pressable, Text, View } from "react-native"
 import type { AioStreamsResult } from "./use-aiostreams-plugin-controller"
 import { type AioStreamsIdMode, aioModeLabel } from "@/lib/player/aiostreams-mode"
+import { formatBytes } from "@/lib/player/format-bytes"
 
 type Props = {
     open: boolean
@@ -88,7 +89,8 @@ export function AioStreamsResultPicker({ open, loading, title, results, error, o
                 {!loading && results.map((result, index) => {
                     const focused = Platform.isTV && focusedIndex === index
                     const name = result.name || result.filename || result.folderName || `Result ${index + 1}`
-                    const details = [result.resolution, result.service, result.cached ? "Cached" : null, result.seeders ? `${result.seeders} seeders` : null]
+                    const size = formatBytes(result.size)
+                    const details = [result.resolution, result.service, size, result.cached ? "Cached" : null, result.seeders ? `${result.seeders} seeders` : null]
                         .filter(Boolean)
                         .join(" · ")
                     return (
@@ -108,9 +110,15 @@ export function AioStreamsResultPicker({ open, loading, title, results, error, o
                             <View className="flex-row items-start gap-3">
                                 <Ionicons name={result.type === "p2p" ? "magnet-outline" : "play-circle-outline"} size={22} color="#a4f4cf" />
                                 <View className="flex-1 gap-1">
-                                    <Text className="text-white font-semibold" numberOfLines={2}>{name}</Text>
-                                    {!!details && <Text className="text-white/55 text-xs" numberOfLines={2}>{details}</Text>}
-                                    {!!result.description && <Text className="text-white/35 text-xs" numberOfLines={2}>{result.description}</Text>}
+                                    <Text className="text-white font-semibold" numberOfLines={3}>{name}</Text>
+                                    {!!details && <Text className="text-white/55 text-xs">{details}</Text>}
+                                    {/* The plugin packs the provider, the full filename, the size/bitrate
+                                        and the cached/debrid badges into `description`, line by line. It was
+                                        being cut to two lines, which is why TV/mobile showed far less than
+                                        the desktop panel — show it all. */}
+                                    {!!result.description && (
+                                        <Text className="text-white/40 text-xs">{result.description}</Text>
+                                    )}
                                 </View>
                             </View>
                         </Pressable>
