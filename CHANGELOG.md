@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.3.11 (phones/tablets) and v0.3.15 (Android TV)
+
+- 🩹 **AIOStreams tabs: the answer is no longer thrown away.** The on-device readout showed the plugin
+  *had* switched and answered (14 Kitsu results), but a guard compared "answered?" against a timestamp
+  and rejected the correct answer, so the sheet stayed on "switching" and then reported that the plugin
+  never answered. The switch now tracks answers with a counter, which also removes a same-millisecond
+  ambiguity that could make it skip the re-ask instead (the two failure modes were the same flaw)
+
 ## v0.3.10 (phones/tablets) and v0.3.14 (Android TV)
 
 - 🩹 **AIOStreams tabs actually switch now.** The app never re-asked the plugin after changing the ID:

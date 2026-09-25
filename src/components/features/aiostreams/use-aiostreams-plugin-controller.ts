@@ -144,8 +144,11 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
     // Bumped by every switch (and by closing), so an older switch's retry loop stops as soon as a
     // newer one starts. Without this, one stuck switch made the tabs unresponsive.
     const switchTokenRef = React.useRef(0)
-    // When the episode was last re-asked; only a *meaningful* answer newer than this ends the switch.
-    const rerunAtRef = React.useRef(0)
+    // Answers are counted instead of timestamped: two events in the same millisecond cannot be told
+    // apart by time, and that ambiguity is what made a switch either skip its re-ask or ignore the
+    // answer. The switch remembers the counter value it started from.
+    const answerSeqRef = React.useRef(0)
+    const switchSeqRef = React.useRef(0)
     // A state counts as an answer only if the plugin finished a search with something to show
     // (results or an error). Right after a restart the plugin re-syncs its webview state with an
     // empty list — treating that as an answer cancelled the retries and left the sheet empty.
@@ -177,15 +180,13 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
                 const state = payload.value as PluginState
                 trace({ states: debugRef.current.states + 1, loading: typeof state.loading === "boolean" ? state.loading : null, results: Array.isArray(state.results) ? state.results.length : -1 })
                 const finished = typeof state.loading === "boolean" && !state.loading
-                // An answer that arrives while the plugin is still configured for the *other* ID is
-                // the previous search finishing — showing it is what made the list look unchanged.
-                const pluginSwitched = !!pendingModeRef.current && configuredModeRef.current === pendingModeRef.current
-                const staleMode = switchingRef.current && !pluginSwitched
-                const hasAnswer = finished && !staleMode && ((state.results?.length ?? 0) > 0 || !!state.error)
-                if (staleMode && finished) trace({ note: `ignored: plugin still on ${configuredModeRef.current ?? "?"}` })
+                // Accepted as soon as the plugin finishes a search with something to show. An earlier
+                // version also required the plugin's *saved* config to already report the new mode,
+                // but that query lags: it rejected the correct answer and made the switch look dead.
+                const hasAnswer = finished && ((state.results?.length ?? 0) > 0 || !!state.error)
                 if (hasAnswer) {
-                    answeredAtRef.current = Date.now()
-                    if (switchingRef.current && answeredAtRef.current > rerunAtRef.current) {
+                    answerSeqRef.current += 1
+                    if (switchingRef.current && answerSeqRef.current > switchSeqRef.current) {
                         switchingRef.current = false
                         setSwitching(false)
                     }
@@ -277,8 +278,6 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
             return false
         }
 
-        if (options?.skipAvailabilityCheck) rerunAtRef.current = Date.now()
-
         // If the plugin never answers, stop waiting and surface an error
         // instead of leaving the picker spinning forever.
         clearRequestTimeout()
@@ -328,13 +327,10 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
         // any switch supersedes whatever was in flight
         const token = ++switchTokenRef.current
         const episode = pendingEpisode.current
-        // The switch starts now: only an answer that arrives AFTER this point counts as the new
-        // mode's answer. (Leaving rerunAtRef at 0 made any earlier answer look like "already
-        // answered", which skipped every re-ask — the plugin was then never asked for the new ID.)
-        rerunAtRef.current = Date.now()
-        // Retries keep going until the plugin actually answers the *new* mode; an empty state from
-        // its restart must not count.
-        const settled = () => answeredAtRef.current > rerunAtRef.current
+        switchSeqRef.current = answerSeqRef.current
+        // Retries keep going until the plugin answers after the switch; a state from its restart (or
+        // the tail of the previous search) does not count.
+        const settled = () => answerSeqRef.current > switchSeqRef.current
 
         switchingRef.current = true
         setSwitching(true)
