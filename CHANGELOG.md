@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.3.10 (phones/tablets) and v0.3.14 (Android TV)
+
+- 🩹 **AIOStreams tabs actually switch now.** The app never re-asked the plugin after changing the ID:
+  the "has the plugin answered yet?" check was compared against a timestamp that was still zero, so an
+  answer from the *previous* search looked like "already answered" and every re-ask was skipped. The
+  plugin was therefore never asked for the new ID and the list stayed as it was — the diagnostic line
+  showed it plainly (`sends=1`). The switch now re-asks immediately, and a regression test drives a
+  switch after a completed search to make sure the request is really sent
+
 ## v0.3.9 (phones/tablets) and v0.3.13 (Android TV)
 
 - 🔍 AIOStreams tabs: the results sheet now shows a small diagnostic line (messages received, the last

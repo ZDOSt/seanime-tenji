@@ -328,6 +328,10 @@ export function useAioStreamsPluginController(entry: Anime_Entry) {
         // any switch supersedes whatever was in flight
         const token = ++switchTokenRef.current
         const episode = pendingEpisode.current
+        // The switch starts now: only an answer that arrives AFTER this point counts as the new
+        // mode's answer. (Leaving rerunAtRef at 0 made any earlier answer look like "already
+        // answered", which skipped every re-ask — the plugin was then never asked for the new ID.)
+        rerunAtRef.current = Date.now()
         // Retries keep going until the plugin actually answers the *new* mode; an empty state from
         // its restart must not count.
         const settled = () => answeredAtRef.current > rerunAtRef.current

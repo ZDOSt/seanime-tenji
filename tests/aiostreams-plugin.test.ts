@@ -355,3 +355,18 @@ test("an answer from the previous ID is ignored while the plugin has not switche
     assert.equal(h.switching, true)
     assert.equal(h.results.length, 0, "the old mode's results are not shown")
 })
+
+test("the switch really re-asks the plugin, even after the previous search answered", async () => {
+    // Regression: rerunAtRef started at 0, so an answer from the previous mode looked like "already
+    // answered" and every re-ask was skipped — the plugin was never asked for the new ID.
+    const h = controllerHarness({ searchId: "kitsuId" })
+    const episode = { episodeNumber: 11, aniDBEpisode: "11", baseAnime: { id: 123 } }
+    h.controller.request(episode)
+    h.receive({ type: "plugin", payload: stateEvent({ loading: false, results: [{ name: "kitsu", url: "u", type: "http" }] }) })
+    assert.equal(h.sent.length, 1)
+
+    h.controller.switchMode("imdb")
+    await new Promise(r => setTimeout(r, 1200))   // the first re-ask is scheduled at +900ms
+    assert.ok(h.sent.length >= 2, `expected a re-ask, got ${h.sent.length} sends`)
+    assert.equal(h.sent[1].payload.payload.episode.baseAnime.id, 123)
+})
