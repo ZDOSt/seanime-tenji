@@ -29,11 +29,15 @@ import {
 } from "@/lib/home/home-items"
 import { useIsFocused } from "expo-router"
 import { router, useFocusEffect } from "expo-router"
+import { recallListPosition, rememberListPosition } from "@/lib/ui/list-memory"
 import { useSetAtom } from "jotai"
 import * as React from "react"
 import { Platform, RefreshControl, Text, View } from "react-native"
 import Animated, { SharedValue, useAnimatedScrollHandler, useSharedValue } from "react-native-reanimated"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
+
+/** Key used to remember this screen's scroll position and last opened show. */
+const LIBRARY_LIST_KEY = "library-home"
 
 export default function LibraryScreen() {
     if (Platform.isTV) {
@@ -61,6 +65,16 @@ function MobileLibraryScreen() {
     })
 
     useIOSScrollRefreshRateWorkaround()
+
+    // Where the user was: the list is rebuilt on every refetch (and is even keyed by connectivity),
+    // so the position is remembered outside the component and restored when the screen comes back.
+    const listRef = React.useRef<any>(null)
+    const hasLoadedOnceRef = React.useRef(false)
+    const restoredRef = React.useRef(false)
+
+    const rememberWhereIWas = React.useCallback((mediaId?: number) => {
+        rememberListPosition(LIBRARY_LIST_KEY, { mediaId, offset: scrollY.value })
+    }, [scrollY])
 
     const {
         libraryCollectionList,
@@ -122,6 +136,26 @@ function MobileLibraryScreen() {
         }, [isConnected]),
     )
 
+    // Back from a show: put the list where it was, before the user can see it jump.
+    React.useEffect(() => {
+        if (!isFocused || restoredRef.current || !contentItems.length) return
+        const remembered = recallListPosition(LIBRARY_LIST_KEY)
+        if (!remembered) return
+        restoredRef.current = true
+        const offset = remembered.offset ?? 0
+        const frame = requestAnimationFrame(() => listRef.current?.scrollToOffset?.({ offset, animated: false }))
+        return () => cancelAnimationFrame(frame)
+    }, [isFocused, contentItems.length])
+
+    React.useEffect(() => {
+        if (isFocused) {
+            if (contentItems.length > 0) hasLoadedOnceRef.current = true
+        } else {
+            // reset for the next visit
+            restoredRef.current = false
+        }
+    }, [isFocused, contentItems.length])
+
     const hasHero = isConnected && trendingHeroMedia.length > 0 && !isSearching
     const searchHeaderHeight = isConnected ? LIBRARY_SEARCH_HEADER_BASE_HEIGHT : 0
 
@@ -156,6 +190,7 @@ function MobileLibraryScreen() {
             }))
         }
 
+        rememberWhereIWas(mediaId)
         router.push({
             pathname: "/(app)/entry/anime/[id]",
             params: {
@@ -165,7 +200,9 @@ function MobileLibraryScreen() {
         })
     }, [setPlaybackIntent])
 
-    if (isLoading && isConnected) {
+    // Only the very first load may show a spinner: replacing the list on every refetch is what
+    // dumped the user back at the top of the screen.
+    if (isLoading && isConnected && !hasLoadedOnceRef.current) {
         return (
             <View
                 className="flex-1 bg-background justify-center items-center"
@@ -190,7 +227,10 @@ function MobileLibraryScreen() {
                             type="anime"
                             media={searchResults}
                             query={searchQuery}
-                            onPress={(media) => router.push(`/(app)/entry/anime/${media.id}`)}
+                            onPress={(media) => {
+                                rememberWhereIWas(media.id)
+                                router.push(`/(app)/entry/anime/${media.id}`)
+                            }}
                             topPadding={searchHeaderHeight}
                         />
                     ) : (
@@ -205,6 +245,7 @@ function MobileLibraryScreen() {
                             />
                         )}
                         <Animated.FlatList
+                            ref={listRef}
                             key={isConnected ? "online" : "offline"}
                             data={isConnected ? contentItems : []}
                             renderItem={({ item, index }) => (

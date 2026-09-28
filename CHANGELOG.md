@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.3.15 (phones/tablets) and v0.3.19 (Android TV)
+
+- ✨ Coming back from a show returns you to where you were, instead of the top of the page. The library
+  screen remembers the show you opened and the scroll position, and restores them when the screen comes
+  back — including when the list is rebuilt in between (it is re-keyed by connectivity today, which is
+  what used to reset it)
+- 🩹 The library list is no longer replaced by its loading spinner on every refetch — only on the very
+  first load. That spinner was what threw the position away
+
 ## v0.3.14 (phones/tablets) and v0.3.18 (Android TV)
 
 - ✨ AIOStreams results now show the **full metadata**, matching the desktop panel: provider, complete
