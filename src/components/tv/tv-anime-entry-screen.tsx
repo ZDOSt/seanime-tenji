@@ -34,7 +34,7 @@ import Ionicons from "@expo/vector-icons/Ionicons"
 import { useGetAnilistAnimeDetails } from "@/api/hooks/anilist.hooks"
 import { CenteredSpinner } from "@/components/shared/centered-spinner"
 import type { AnimeEntryView } from "@/components/features/media/anime-entry-view-switcher"
-import { forcedEntryView, tvEntryView } from "@/components/features/media/anime-entry-view-utils"
+import { tvEntryView } from "@/components/features/media/anime-entry-view-utils"
 import { getDefaultPlaybackSource, isAioStreamsPlaybackSource } from "@/lib/default-playback-source"
 import { getEpisodeSpoilerState } from "@/lib/anime-spoilers"
 import { altTitle, cleanHtml, listStatus, mediaTitle, startLabel } from "@/lib/media-metadata"
@@ -62,8 +62,7 @@ export function TVAnimeEntryScreen({
     const serverLocalIdentity = useServerLocalIdentity()
     const serverLocalEntry = useServerLocalAnimeEntry(entry.mediaId)
     const { data: watchHistory } = useGetContinuityWatchHistory()
-    // AIOStreams as the episode source forces the Torrents view, whatever the caller asked for
-    const [localView, setLocalView] = React.useState<AnimeEntryView>(() => tvEntryView(forcedEntryView(serverStatus, initialView) ?? initialView))
+    const [localView, setLocalView] = React.useState<AnimeEntryView>(() => tvEntryView(initialView))
     const [editOpen, setEditOpen] = React.useState(false)
     const [returnFocus, setReturnFocus] = useAtom(tvReturnFocusAtom)
     const episodeRefs = React.useRef(new Map<string, FocusNode>())
@@ -71,7 +70,7 @@ export function TVAnimeEntryScreen({
     const editRef = React.useRef<FocusNode>(null)
     const playRef = React.useRef<FocusNode>(null)
 
-    const activeView = tvEntryView(forcedEntryView(serverStatus, undefined) ?? currentView ?? localView)
+    const activeView = tvEntryView(currentView ?? localView)
     const setActiveView = React.useCallback((view: AnimeEntryView) => {
         const next = tvEntryView(view)
         if (onViewChange) {

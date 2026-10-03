@@ -2,12 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
-## v0.3.16 (phones/tablets) and v0.3.20 (Android TV)
+## v0.3.17 (phones/tablets) and v0.3.21 (Android TV)
 
-- 🩹 With AIOStreams as the default episode source, an anime now **always opens on the Torrents view**.
-  Nothing can send it to the local Library any more — Continue Watching items carry their own view
-  hint, and once the row started working it was passing "library" for shows that were never downloaded,
-  which is why this appeared out of nowhere
+- 🩹 Opening an anime from **Continue Watching** no longer lands on the Library tab. Those items carry a
+  view hint of their own ("library") that describes the *stream* collection they come from, not where
+  the show lives, and the entry screen obeyed it. The hint is gone, so the screen picks the view from
+  your episode-source setting exactly like every other list does
 
 ## v0.3.15 (phones/tablets) and v0.3.19 (Android TV)
 

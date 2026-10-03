@@ -7,7 +7,7 @@ import { AnimeEntryLibraryView } from "@/components/features/media/anime-entry-l
 import { useAnimeEntryScreen } from "@/components/features/media/anime-entry-screen-context"
 import { AnimeEntryServerLocalView } from "@/components/features/media/anime-entry-server-local-view"
 import { AnimeEntryView, AnimeEntryViewSwitcher } from "@/components/features/media/anime-entry-view-switcher"
-import { defaultEntryView, forcedEntryView, tvEntryView } from "@/components/features/media/anime-entry-view-utils"
+import { defaultEntryView, tvEntryView } from "@/components/features/media/anime-entry-view-utils"
 import { MediaEntryHeaderBackground } from "@/components/features/media/media-entry-header"
 import { MediaEntryScrollShell } from "@/components/features/media/media-entry-scroll-shell"
 import { AnimeEntryOnlinestreamSection } from "@/components/features/onlinestream/anime-entry-onlinestream-section"
@@ -34,10 +34,8 @@ type AnimeEntryScreenProps = {
 export function AnimeEntryScreen({ initialView }: AnimeEntryScreenProps) {
     const { id, entry, isFetching, refetch } = useAnimeEntryScreen()
     const serverStatus = useServerStatus()
-    // AIOStreams as the episode source forces the Torrents view (see forcedEntryView)
-    const forced = forcedEntryView(serverStatus, initialView)
-    const hasInitialView = forced !== undefined && forced === initialView && initialView !== undefined
-    const requestedView = forced ?? defaultEntryView(serverStatus, !!entry.libraryData)
+    const hasInitialView = initialView !== undefined
+    const requestedView = initialView ?? defaultEntryView(serverStatus, !!entry.libraryData)
     const startView = Platform.isTV ? tvEntryView(requestedView) : requestedView
     const [playbackIntent, setPlaybackIntent] = useAtom(animeEntryPlaybackIntentAtom)
     const isFocused = useIsFocused()

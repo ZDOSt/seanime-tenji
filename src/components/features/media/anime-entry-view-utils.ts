@@ -4,17 +4,6 @@ import { getDefaultPlaybackSource, isAioStreamsPlaybackSource } from "@/lib/defa
 
 type ServerStatus = Status | null | undefined
 
-/**
- * The view an entry must open on. When the AIOStreams plugin is the default episode source, Torrents
- * is forced: that view *is* the plugin's picker and playback path, and callers (Continue Watching
- * items carry a `sourceView`) must not be able to open it on the local Library instead.
- */
-export function forcedEntryView(status: ServerStatus, initialView?: AnimeEntryView): AnimeEntryView | undefined {
-    const source = getDefaultPlaybackSource(status)
-    if (isAioStreamsPlaybackSource(source)) return "torrentstream"
-    return initialView
-}
-
 export function tvEntryView(view: AnimeEntryView): AnimeEntryView {
     return view === "downloaded" ? "library" : view
 }

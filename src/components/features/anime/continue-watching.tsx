@@ -48,7 +48,9 @@ export function ContinueWatching(props: ContinueWatchingProps) {
             pathname: "/(app)/entry/anime/[id]",
             params: {
                 id: String(mediaId),
-                initialView: item.sourceView,
+                // No view hint: these items come from the *stream* collection, and their sourceView
+                // ("library") does not describe where the show actually lives. Without it the entry
+                // screen picks the view from the user's episode-source setting, as everywhere else.
             },
         })
     }, [items, setPlaybackIntent])
