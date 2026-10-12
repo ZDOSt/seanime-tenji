@@ -271,11 +271,17 @@ export function TVLibraryScreen() {
             }))
         }
 
+        // The hint only makes sense when the item really is a local file: for a Continue Watching
+        // entry coming from the stream collection, `sourceView` is always "library" even though there
+        // is nothing local to play, and passing it made the entry open on the Library tab instead of
+        // the configured episode source (AIOStreams -> Torrents).
+        const viewHint = item.sourceView === "library" && !episode.localFile?.path ? undefined : item.sourceView
+
         router.push({
             pathname: "/(app)/entry/anime/[id]",
             params: {
                 id: String(mediaId),
-                initialView: item.sourceView,
+                ...(viewHint ? { initialView: viewHint } : {}),
             },
         })
     }, [setPlaybackIntent])

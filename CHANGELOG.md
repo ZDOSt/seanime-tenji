@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.3.18 (phones/tablets) and v0.3.22 (Android TV)
+
+- 🩹 **Continue Watching now opens on Torrents (AIOStreams), as it should.** The TV library screen was
+  handing the entry a "library" view hint for every Continue Watching item — that hint comes from the
+  stream collection and is only meaningful when the item is a real local file. With no local file it was
+  pointing the entry at the Library tab instead of the configured episode source. The hint is now only
+  passed when it is true
+
 ## v0.3.17 (phones/tablets) and v0.3.21 (Android TV)
 
 - 🩹 Opening an anime from **Continue Watching** no longer lands on the Library tab. Those items carry a
