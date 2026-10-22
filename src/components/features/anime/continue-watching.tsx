@@ -5,6 +5,8 @@ import { useServerStatus } from "@/atoms/server.atoms"
 import { EpisodeCardList } from "@/components/features/anime/episode-card-list"
 import { ContinueWatchingItem } from "@/hooks/use-anime-library-collection"
 import { getContinueWatchingSpoilerActive } from "@/lib/anime-spoilers"
+import { getContinueWatchingBadge } from "@/lib/continue-watching-meta"
+import type { ContinueWatchingBadge } from "@/lib/continue-watching-meta"
 import { router } from "expo-router"
 import { useSetAtom } from "jotai"
 import * as React from "react"
@@ -26,6 +28,22 @@ export function ContinueWatching(props: ContinueWatchingProps) {
 
     const episodes = React.useMemo(() => items.map(item => item.episode), [items])
     const continueWatchingSpoilerActive = getContinueWatchingSpoilerActive(serverStatus)
+
+    // One badge per show, computed once per data change: "New episode" wins, then the next airing.
+    const badgeByMediaId = React.useMemo(() => {
+        const badges = new Map<number, ContinueWatchingBadge>()
+        const nowSeconds = Date.now() / 1000
+
+        for (const item of items) {
+            const mediaId = item.episode.baseAnime?.id
+            if (!mediaId) continue
+
+            const badge = getContinueWatchingBadge(item.meta, nowSeconds)
+            if (badge) badges.set(mediaId, badge)
+        }
+
+        return badges
+    }, [items])
 
     const handleEpisodePress = React.useCallback((episode: Anime_Episode) => {
         const item = items.find(entry => (
@@ -69,6 +87,7 @@ export function ContinueWatching(props: ContinueWatchingProps) {
                 watchHistory={watchHistory}
                 spoilerActive={continueWatchingSpoilerActive}
                 showAnimeTitle
+                badgeByMediaId={badgeByMediaId}
             />
         </Animated.View>
     )

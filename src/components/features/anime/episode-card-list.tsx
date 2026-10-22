@@ -3,6 +3,7 @@ import { getEpisodePercentageComplete } from "@/api/hooks/continuity.hooks"
 import { useServerStatus } from "@/atoms/server.atoms"
 import { EpisodeCard } from "@/components/features/anime/episode-card"
 import { getEpisodeSpoilerState } from "@/lib/anime-spoilers"
+import type { ContinueWatchingBadge } from "@/lib/continue-watching-meta"
 import { getEpisodeCardRowHeight, getEpisodeCardWidth, getHorizontalCardRenderCount } from "@/lib/responsive-card-layout"
 import React from "react"
 import { ActivityIndicator, FlatList, ListRenderItemInfo, Platform, Text, useWindowDimensions, View } from "react-native"
@@ -23,6 +24,8 @@ type EpisodeCardListProps = {
     disabled?: boolean
     loadingEpisodeNumber?: number | null
     showAnimeTitle?: boolean
+    /** Optional per-show badge (Continue Watching), keyed by media id. */
+    badgeByMediaId?: ReadonlyMap<number, ContinueWatchingBadge>
 }
 
 function EpisodeLoadingBadge() {
@@ -50,6 +53,7 @@ export function EpisodeCardList(props: EpisodeCardListProps) {
         disabled,
         loadingEpisodeNumber,
         showAnimeTitle,
+        badgeByMediaId,
     } = props
     const serverStatus = useServerStatus()
     const { width: screenWidth } = useWindowDimensions()
@@ -97,15 +101,19 @@ export function EpisodeCardList(props: EpisodeCardListProps) {
                 disabled={disabled}
                 thumbnailOverlay={isLoading ? <EpisodeLoadingBadge /> : undefined}
                 animeTitle={animeTitle}
+                badge={item.baseAnime?.id != null ? badgeByMediaId?.get(item.baseAnime.id) : undefined}
             />
         )
-    }, [blurAdultContent, cardWidth, disabled, loadingEpisodeNumber, mediaId, onEpisodePress, serverStatus, spoilerActive, watchedProgress, watchHistory, showAnimeTitle])
+    }, [badgeByMediaId, blurAdultContent, cardWidth, disabled, loadingEpisodeNumber, mediaId, onEpisodePress, serverStatus, spoilerActive, watchedProgress, watchHistory, showAnimeTitle])
 
     const getItemLayout = React.useCallback((_: ArrayLike<Anime_Episode> | null | undefined, index: number) => ({
         length: itemFullWidth,
         offset: itemFullWidth * index,
         index,
     }), [itemFullWidth])
+
+    // Re-render cells when the badge data changes, not only when the card width does.
+    const extraData = React.useMemo(() => ({ cardWidth, badgeByMediaId }), [badgeByMediaId, cardWidth])
 
     return (
         <View>
@@ -119,7 +127,7 @@ export function EpisodeCardList(props: EpisodeCardListProps) {
                     showsHorizontalScrollIndicator={false}
                     keyExtractor={keyExtractor}
                     renderItem={renderEpisodeCard}
-                    extraData={cardWidth}
+                    extraData={extraData}
                     contentContainerStyle={CONTENT_CONTAINER_STYLE}
                     ItemSeparatorComponent={EpisodeCardSeparator}
                     getItemLayout={getItemLayout}

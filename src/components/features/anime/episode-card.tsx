@@ -1,4 +1,5 @@
 import { SeaImage } from "@/components/shared/sea-image"
+import type { ContinueWatchingBadge } from "@/lib/continue-watching-meta"
 import { getEpisodeCardWidth } from "@/lib/responsive-card-layout"
 import * as React from "react"
 import { Animated, Platform, Pressable, Text, useWindowDimensions, View } from "react-native"
@@ -17,6 +18,7 @@ type EpisodeCardProps = {
     thumbnailOverlay?: React.ReactNode
     animeTitle?: string
     small?: boolean
+    badge?: ContinueWatchingBadge
 }
 
 export const EpisodeCard = React.memo(function EpisodeCard(props: EpisodeCardProps) {
@@ -34,6 +36,7 @@ export const EpisodeCard = React.memo(function EpisodeCard(props: EpisodeCardPro
         thumbnailOverlay,
         animeTitle,
         small,
+        badge,
     } = props
     const { width: screenWidth } = useWindowDimensions()
     const resolvedCardWidth = cardWidth ?? getEpisodeCardWidth(screenWidth)
@@ -72,6 +75,22 @@ export const EpisodeCard = React.memo(function EpisodeCard(props: EpisodeCardPro
                         transition={120}
                         blurRadius={imageBlurred ? 18 : 0}
                     />
+                    {badge && (
+                        <View
+                            pointerEvents="none"
+                            className={badge.emphasized
+                                ? "absolute left-2 top-2 rounded-full bg-brand-500 px-2 py-0.5"
+                                : "absolute left-2 top-2 rounded-full border border-white/15 bg-black/70 px-2 py-0.5"}
+                        >
+                            <Text
+                                className={badge.emphasized
+                                    ? "text-[10px] font-bold text-white"
+                                    : "text-[10px] font-semibold text-white/80"}
+                            >
+                                {badge.label}
+                            </Text>
+                        </View>
+                    )}
                     {!!progressPercent && progressPercent > 0 && (
                         <View className="absolute bottom-0 left-0 right-0 h-[3px] bg-white/10 rounded-b-xl overflow-hidden">
                             <View

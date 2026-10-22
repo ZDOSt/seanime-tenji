@@ -1,5 +1,6 @@
 import { usePreferredFocus, useTVFocus, useTVNavigationDestination } from "@/components/tv/tv-focus"
 import { TV, tvSize } from "@/components/tv/tv-scale"
+import type { ContinueWatchingBadge } from "@/lib/continue-watching-meta"
 import { Image } from "expo-image"
 import { LinearGradient } from "expo-linear-gradient"
 import { Ionicons } from "@/lib/icons/Ionicons"
@@ -20,6 +21,8 @@ export interface TVEpisodeCardProps extends Omit<PressableProps, "onPress"> {
     filler?: boolean
     blurred?: boolean
     navOnUp?: boolean
+    /** Continue Watching status pill ("New episode" / "Airs in 3d"). */
+    statusBadge?: ContinueWatchingBadge | null
 }
 
 export const TVEpisodeCard = React.memo(
@@ -38,6 +41,7 @@ export const TVEpisodeCard = React.memo(
             filler,
             blurred,
             navOnUp = false,
+            statusBadge,
             ...props
         }, ref) {
             const focus = useTVFocus(1.07, title)
@@ -57,7 +61,7 @@ export const TVEpisodeCard = React.memo(
                     nextFocusUp={navOnUp ? navDestination : props.nextFocusUp}
                     scrollSnapAlign="start"
                     accessibilityRole="button"
-                    accessibilityLabel={`${title}${subtitle ? `, ${subtitle}` : ""}`}
+                    accessibilityLabel={`${title}${subtitle ? `, ${subtitle}` : ""}${statusBadge ? `, ${statusBadge.label}` : ""}`}
                     style={{ width }}
                     {...props}
                 >
@@ -132,6 +136,30 @@ export const TVEpisodeCard = React.memo(
                                 >
                                     <Text className="font-bold text-black" style={{ fontSize: tvSize(14) }}>
                                         FILLER
+                                    </Text>
+                                </View>
+                            ) : null}
+                            {statusBadge ? (
+                                <View
+                                    pointerEvents="none"
+                                    style={{
+                                        position: "absolute",
+                                        top: tvSize(12),
+                                        right: tvSize(12),
+                                        minHeight: tvSize(30),
+                                        borderRadius: tvSize(16),
+                                        paddingHorizontal: tvSize(10),
+                                        justifyContent: "center",
+                                        backgroundColor: statusBadge.emphasized
+                                            ? "#6152df"
+                                            : "rgba(20,20,20,0.78)",
+                                    }}
+                                >
+                                    <Text
+                                        className={statusBadge.emphasized ? "font-bold text-white" : "font-semibold text-white"}
+                                        style={{ fontSize: tvSize(15) }}
+                                    >
+                                        {statusBadge.label}
                                     </Text>
                                 </View>
                             ) : null}

@@ -1,6 +1,7 @@
 import { useServerStatus } from "@/atoms/server.atoms"
 import type { ContinueWatchingItem } from "@/hooks/use-anime-library-collection"
 import { getContinueWatchingSpoilerActive, getEpisodeSpoilerState } from "@/lib/anime-spoilers"
+import { getContinueWatchingBadge } from "@/lib/continue-watching-meta"
 import * as React from "react"
 import { TVEpisodeCard } from "./tv-episode-card"
 import { Pressable } from "react-native"
@@ -38,6 +39,7 @@ export const TVContinueCard = React.memo(
                 ?? media?.bannerImage
                 ?? media?.coverImage?.extraLarge
                 ?? media?.coverImage?.large
+            const statusBadge = getContinueWatchingBadge(item.meta)
 
             return (
                 <TVEpisodeCard
@@ -55,6 +57,7 @@ export const TVContinueCard = React.memo(
                     navOnUp={navOnUp}
                     filler={episode.episodeMetadata?.isFiller}
                     blurred={spoiler.hideThumbnail}
+                    statusBadge={statusBadge}
                     recyclingKey={`${media?.id ?? "episode"}-${episode.episodeNumber}`}
                     {...props}
                 />

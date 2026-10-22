@@ -2,6 +2,8 @@ import { Anime_Episode } from "@/api/generated/types"
 import { useGetLibraryCollection } from "@/api/hooks/anime_collection.hooks"
 import { useGetContinuityWatchHistory } from "@/api/hooks/continuity.hooks"
 import { useServerStatus } from "@/atoms/server.atoms"
+import { getContinueWatchingMetaMap } from "@/lib/continue-watching-meta"
+import type { ContinueWatchingMeta } from "@/lib/continue-watching-meta"
 import { getThemeSetting } from "@/lib/theme-settings"
 import { CollectionParams, DEFAULT_COLLECTION_PARAMS, filterAnimeCollectionEntries, sortContinueWatchingEpisodes } from "@/lib/utils/filtering"
 import { atomWithImmer } from "jotai-immer"
@@ -11,6 +13,8 @@ import React from "react"
 export type ContinueWatchingItem = {
     episode: Anime_Episode
     sourceView: "library" | "torrentstream" | "onlinestream"
+    /** Additive server info (promotion / next airing). Absent on old servers. */
+    meta?: ContinueWatchingMeta
 }
 
 export const MAIN_LIBRARY_DEFAULT_PARAMS: CollectionParams = {
@@ -124,6 +128,9 @@ export function useAnimeLibraryCollection() {
         ].filter(Boolean)
     }, [data, params, serverStatus?.settings?.anilist?.enableAdultContent, watchHistory])
 
+    // Older servers do not send this field at all; the accessor returns a stable empty map.
+    const continueWatchingMeta = getContinueWatchingMetaMap(data)
+
     const continueWatchingList = React.useMemo(() => {
         const fallbackStreamView: ContinueWatchingItem["sourceView"] =
             serverStatus?.torrentstreamSettings?.includeInLibrary
@@ -144,6 +151,7 @@ export function useAnimeLibraryCollection() {
             const item: ContinueWatchingItem = {
                 episode,
                 sourceView: episode.localFile?.path ? "library" : sourceView,
+                meta: continueWatchingMeta[mediaId] ?? undefined,
             }
 
             const existing = deduped.get(mediaId)
@@ -192,6 +200,7 @@ export function useAnimeLibraryCollection() {
         data?.lists,
         data?.stream?.continueWatchingList,
         continueWatchingDefaultSorting,
+        continueWatchingMeta,
         serverStatus?.settings?.anilist?.blurAdultContent,
         serverStatus?.settings?.anilist?.enableAdultContent,
         serverStatus?.settings?.library?.enableOnlinestream,
