@@ -6,12 +6,22 @@ import { useServerStatus } from "@/atoms/server.atoms"
 import { useQueryClient } from "@tanstack/react-query"
 import React from "react"
 
-export function useUpdateContinuityWatchHistoryItem() {
+type UpdateContinuityHookOptions = {
+    /**
+     * Player telemetry must stay silent: old servers do not have the continuity endpoint, and
+     * a failed report must never interrupt playback with a toast.
+     */
+    muteError?: boolean
+}
+
+export function useUpdateContinuityWatchHistoryItem(options: UpdateContinuityHookOptions = {}) {
     const qc = useQueryClient()
     return useServerMutation<boolean, UpdateContinuityWatchHistoryItem_Variables>({
         endpoint: API_ENDPOINTS.CONTINUITY.UpdateContinuityWatchHistoryItem.endpoint,
         method: API_ENDPOINTS.CONTINUITY.UpdateContinuityWatchHistoryItem.methods[0],
         mutationKey: [API_ENDPOINTS.CONTINUITY.UpdateContinuityWatchHistoryItem.key],
+        muteError: options.muteError,
+        retry: false,
         onSuccess: async () => {
             await qc.invalidateQueries({ queryKey: [API_ENDPOINTS.CONTINUITY.GetContinuityWatchHistory.key] })
         },

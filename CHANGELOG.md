@@ -1,3 +1,11 @@
+## v0.3.26 (phones/tablets and Android TV)
+
+- 🩹 **Continue Watching now records what you watch on TV and phone.** The app already reported playback
+  progress to the server; that endpoint now feeds the Continue Watching row, so watching five minutes on
+  the phone is enough for the show to appear
+- Progress reports are silent on failure, never retried, and sent at playback start as well as every 15 s
+- 5 new tests for the reporting throttle (78 total)
+
 ## v0.3.25 (phones/tablets and Android TV — same version number for both)
 
 - 🆕 **Long-press a Continue Watching card to remove the show** (hold OK on the TV remote). The removal is
