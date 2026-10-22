@@ -6,10 +6,12 @@ import { EpisodeCardList } from "@/components/features/anime/episode-card-list"
 import { ContinueWatchingItem } from "@/hooks/use-anime-library-collection"
 import { getContinueWatchingSpoilerActive } from "@/lib/anime-spoilers"
 import { getContinueWatchingBadge } from "@/lib/continue-watching-meta"
+import { useDismissContinueWatching } from "@/lib/use-dismiss-continue-watching"
 import type { ContinueWatchingBadge } from "@/lib/continue-watching-meta"
 import { router } from "expo-router"
 import { useSetAtom } from "jotai"
 import * as React from "react"
+import { Alert } from "react-native"
 import Animated from "react-native-reanimated"
 
 type ContinueWatchingProps = {
@@ -30,6 +32,18 @@ export function ContinueWatching(props: ContinueWatchingProps) {
     const continueWatchingSpoilerActive = getContinueWatchingSpoilerActive(serverStatus)
 
     // One badge per show, computed once per data change: "New episode" wins, then the next airing.
+    const dismiss = useDismissContinueWatching()
+
+    const handleLongPress = React.useCallback((episode: any) => {
+        const mediaId = episode?.baseAnime?.id
+        if (!mediaId) return
+        const title = episode?.baseAnime?.title?.userPreferred ?? "This show"
+        Alert.alert("Remove from Continue Watching?", `${title} will be hidden until you watch it again.`, [
+            { text: "Cancel", style: "cancel" },
+            { text: "Remove", style: "destructive", onPress: () => dismiss.mutate({ mediaId }) },
+        ])
+    }, [dismiss])
+
     const badgeByMediaId = React.useMemo(() => {
         const badges = new Map<number, ContinueWatchingBadge>()
         const nowSeconds = Date.now() / 1000
@@ -81,6 +95,7 @@ export function ContinueWatching(props: ContinueWatchingProps) {
             className="space-y-4"
         >
             <EpisodeCardList
+                onEpisodeLongPress={handleLongPress}
                 title="Continue watching"
                 episodes={episodes}
                 onEpisodePress={handleEpisodePress}

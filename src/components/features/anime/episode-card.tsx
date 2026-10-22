@@ -13,6 +13,7 @@ type EpisodeCardProps = {
     totalEpisodes: number | undefined
     length: number | undefined
     onPress?: () => void
+    onLongPress?: () => void
     progressPercent?: number
     disabled?: boolean
     thumbnailOverlay?: React.ReactNode
@@ -31,6 +32,7 @@ export const EpisodeCard = React.memo(function EpisodeCard(props: EpisodeCardPro
         totalEpisodes,
         length,
         onPress,
+        onLongPress,
         progressPercent,
         disabled,
         thumbnailOverlay,
@@ -55,6 +57,7 @@ export const EpisodeCard = React.memo(function EpisodeCard(props: EpisodeCardPro
     return (
         <Pressable
             onPress={disabled ? undefined : onPress}
+            onLongPress={disabled ? undefined : onLongPress}
             disabled={disabled || !onPress}
             onFocus={() => setFocus(true)}
             onBlur={() => setFocus(false)}

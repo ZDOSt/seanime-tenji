@@ -26,6 +26,7 @@ type EpisodeCardListProps = {
     showAnimeTitle?: boolean
     /** Optional per-show badge (Continue Watching), keyed by media id. */
     badgeByMediaId?: ReadonlyMap<number, ContinueWatchingBadge>
+    onEpisodeLongPress?: (episode: Anime_Episode) => void
 }
 
 function EpisodeLoadingBadge() {
@@ -54,6 +55,7 @@ export function EpisodeCardList(props: EpisodeCardListProps) {
         loadingEpisodeNumber,
         showAnimeTitle,
         badgeByMediaId,
+        onEpisodeLongPress,
     } = props
     const serverStatus = useServerStatus()
     const { width: screenWidth } = useWindowDimensions()
@@ -98,6 +100,7 @@ export function EpisodeCardList(props: EpisodeCardListProps) {
                 onPress={() => {
                     onEpisodePress?.(item)
                 }}
+                onLongPress={onEpisodeLongPress ? () => onEpisodeLongPress(item) : undefined}
                 disabled={disabled}
                 thumbnailOverlay={isLoading ? <EpisodeLoadingBadge /> : undefined}
                 animeTitle={animeTitle}

@@ -1,3 +1,11 @@
+## v0.3.25 (phones/tablets and Android TV — same version number for both)
+
+- 🆕 **Long-press a Continue Watching card to remove the show** (hold OK on the TV remote). The removal is
+  local to the server and never touches your AniList account; watching the show again brings it back
+- 🏷️ Phone and TV now share one version number
+- ⚠️ Continue Watching is built from your own viewing now: a show appears after five minutes of playback,
+  most recent first, and an aired new episode moves it to the top
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
